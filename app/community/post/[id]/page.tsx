@@ -104,7 +104,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Link 
-                  href={`/profile/${post.user_profiles?.id}`}
+                  href={`/profile/${(post.user_profiles as any)?.id || post.user_profiles?.[0]?.id}`}
                   className="text-xl font-bold text-white hover:text-knight-gold"
                 >
                   {getDisplayName(post.user_profiles)}
