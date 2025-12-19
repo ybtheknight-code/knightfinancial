@@ -102,7 +102,7 @@ export default async function AdminMessagesPage() {
         
         {/* Client component for interactivity */}
         <AdminMessagesClient 
-          initialMessages={messages || []} 
+          initialMessages={(messages || []) as any} 
           currentUserRole={profile.role}
           currentUserId={user.id}
         />
