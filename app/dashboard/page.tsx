@@ -145,7 +145,7 @@ export default async function DashboardPage() {
                 <div className="text-3xl mb-2">🚨</div>
                 <div className="text-2xl font-bold text-knight-gold">{adminStats.pendingMod}</div>
                 <div className="text-sm text-gray-400">Pending Moderation</div>
-               {(admin(stats as any)?.pendingMod ?? 0) > 0 && (
+               {((adminStats as any)?.pendingMod ?? 0) > 0 && (
                   <Link href="/admin/moderation" className="text-xs link-knight mt-2 block">
                     Review now →
                   </Link>
