@@ -26,7 +26,14 @@ interface Message {
     phone: string;
     role: string;
     is_prime: boolean;
-  };
+  } | {
+    email: string;
+    first_name: string;
+    last_name: string;
+    phone: string;
+    role: string;
+    is_prime: boolean;
+  }[];
 }
 
 interface AdminMessagesClientProps {
