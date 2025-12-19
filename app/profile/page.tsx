@@ -136,25 +136,25 @@ export default async function ProfilePage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="text-center">
                   <div className="text-3xl mb-2">📊</div>
-                  <div className="text-2xl font-bold text-knight-gold">{stats?.forms_completed || 0}</div>
+                  <div className="text-2xl font-bold text-knight-gold">{(stats as any)?.forms_completed || 0}</div>
                   <div className="text-sm text-gray-400">Forms Done</div>
                 </div>
                 
                 <div className="text-center">
                   <div className="text-3xl mb-2">🎓</div>
-                  <div className="text-2xl font-bold text-knight-gold">{stats?.courses_completed || 0}</div>
+                  <div className="text-2xl font-bold text-knight-gold">{(stats as any)?.courses_completed || 0}</div>
                   <div className="text-sm text-gray-400">Courses Done</div>
                 </div>
                 
                 <div className="text-center">
                   <div className="text-3xl mb-2">✍️</div>
-                  <div className="text-2xl font-bold text-knight-gold">{stats?.disputes_generated || 0}</div>
+                  <div className="text-2xl font-bold text-knight-gold">{(stats as any)?.disputes_generated || 0}</div>
                   <div className="text-sm text-gray-400">Disputes Made</div>
                 </div>
                 
                 <div className="text-center">
                   <div className="text-3xl mb-2">💬</div>
-                  <div className="text-2xl font-bold text-knight-gold">{stats?.posts_created || 0}</div>
+                  <div className="text-2xl font-bold text-knight-gold">{(stats as any)?.posts_created || 0}</div>
                   <div className="text-sm text-gray-400">Posts Made</div>
                 </div>
               </div>
