@@ -6,6 +6,7 @@ export interface Lesson {
   title: string;
   duration: string;
   content: string;
+  quiz?: { question: string; options: string[]; correct: number }[];
 }
 
 export interface Course {
