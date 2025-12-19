@@ -2,492 +2,378 @@
 
 import { useState, useEffect } from 'react';
 import Card from '@/components/Card';
-import Button from '@/components/Button';
-import { Input, Select, Textarea } from '@/components/Input';
-import { createClient } from '@/lib/supabase';
-import { formatDate } from '@/utils';
 
 interface Dispute {
   id: string;
   bureau: string;
-  creditor: string;
-  account_number?: string;
-  dispute_type: string;
-  method: string;
-  date_sent: string;
+  account: string;
+  reason: string;
+  dateSent: string;
   deadline: string;
-  status: 'pending' | 'responded' | 'resolved' | 'escalated' | 'overdue';
-  tracking_number?: string;
-  notes?: string;
-  response_date?: string;
-  response_summary?: string;
-  created_at: string;
+  status: 'pending' | 'responded' | 'won' | 'lost' | 'escalated';
+  notes: string;
 }
+
+const BUREAUS = [
+  { id: 'transunion', name: 'TransUnion', color: 'bg-blue-600', address: 'P.O. Box 2000, Chester, PA 19016' },
+  { id: 'equifax', name: 'Equifax', color: 'bg-red-600', address: 'P.O. Box 740256, Atlanta, GA 30374' },
+  { id: 'experian', name: 'Experian', color: 'bg-purple-600', address: 'P.O. Box 4500, Allen, TX 75013' },
+  { id: 'creditor', name: 'Direct to Creditor', color: 'bg-green-600', address: 'Varies' },
+];
+
+const DISPUTE_REASONS = [
+  'Not my account',
+  'Incorrect balance',
+  'Incorrect payment history',
+  'Wrong dates',
+  'Account closed/paid',
+  'Identity theft',
+  'Duplicate account',
+  'Metro 2 violation',
+  'Outdated information',
+  'Other',
+];
+
+const STATUS_INFO = {
+  pending: { label: 'Pending', color: 'bg-yellow-600', icon: '⏳' },
+  responded: { label: 'Responded', color: 'bg-blue-600', icon: '📬' },
+  won: { label: 'Victory!', color: 'bg-green-600', icon: '🏆' },
+  lost: { label: 'Denied', color: 'bg-red-600', icon: '❌' },
+  escalated: { label: 'Escalated', color: 'bg-purple-600', icon: '⚡' },
+};
 
 export default function TrackerPage() {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [isPrime, setIsPrime] = useState(false);
-  
+  const [showForm, setShowForm] = useState(false);
   const [newDispute, setNewDispute] = useState({
-    bureau: 'TransUnion',
-    creditor: '',
-    account_number: '',
-    dispute_type: 'inaccurate_info',
-    method: 'mail',
-    date_sent: new Date().toISOString().split('T')[0],
-    tracking_number: '',
+    bureau: '',
+    account: '',
+    reason: '',
+    dateSent: new Date().toISOString().split('T')[0],
     notes: '',
   });
-
+  
+  // Load from localStorage
   useEffect(() => {
-    const loadData = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('is_prime, role')
-          .eq('id', user.id)
-          .single();
-          
-        if (profile) {
-          setIsPrime(profile.is_prime || ['admin', 'executive', 'ceo'].includes(profile.role));
-        }
-        
-        // Load disputes
-        const { data: disputeData } = await supabase
-          .from('dispute_tracking')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('deadline', { ascending: true });
-        
-        if (disputeData) {
-          // Check for overdue disputes
-          const now = new Date();
-          const updated = disputeData.map(d => {
-            if (d.status === 'pending' && new Date(d.deadline) < now) {
-              return { ...d, status: 'overdue' as const };
-            }
-            return d;
-          });
-          setDisputes(updated);
-        }
-      }
-      setLoading(false);
-    };
-    
-    loadData();
+    const saved = localStorage.getItem('knight_disputes');
+    if (saved) {
+      setDisputes(JSON.parse(saved));
+    }
   }, []);
-
-  const handleAddDispute = async () => {
-    if (!newDispute.creditor) return;
+  
+  // Save to localStorage
+  const saveDisputes = (updated: Dispute[]) => {
+    setDisputes(updated);
+    localStorage.setItem('knight_disputes', JSON.stringify(updated));
+  };
+  
+  const addDispute = () => {
+    if (!newDispute.bureau || !newDispute.account) return;
     
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const sentDate = new Date(newDispute.dateSent);
+    const deadline = new Date(sentDate);
+    deadline.setDate(deadline.getDate() + 30); // 30-day deadline
     
-    if (!user) return;
-    
-    const dateSent = new Date(newDispute.date_sent);
-    const deadline = new Date(dateSent);
-    deadline.setDate(deadline.getDate() + 30);
-    
-    const dispute: Omit<Dispute, 'id' | 'created_at'> = {
-      bureau: newDispute.bureau,
-      creditor: newDispute.creditor,
-      account_number: newDispute.account_number || undefined,
-      dispute_type: newDispute.dispute_type,
-      method: newDispute.method,
-      date_sent: newDispute.date_sent,
+    const dispute: Dispute = {
+      id: Date.now().toString(),
+      ...newDispute,
       deadline: deadline.toISOString().split('T')[0],
       status: 'pending',
-      tracking_number: newDispute.tracking_number || undefined,
-      notes: newDispute.notes || undefined,
     };
     
-    const { data, error } = await supabase
-      .from('dispute_tracking')
-      .insert({ ...dispute, user_id: user.id })
-      .select()
-      .single();
-    
-    if (data) {
-      setDisputes([data, ...disputes]);
-      setShowAddForm(false);
-      setNewDispute({
-        bureau: 'TransUnion',
-        creditor: '',
-        account_number: '',
-        dispute_type: 'inaccurate_info',
-        method: 'mail',
-        date_sent: new Date().toISOString().split('T')[0],
-        tracking_number: '',
-        notes: '',
-      });
-      
-      // Award points
-      await supabase.rpc('award_points', {
-        p_user_id: user.id,
-        p_points: 10,
-        p_reason: 'Logged dispute in tracker',
-      });
+    saveDisputes([...disputes, dispute]);
+    setNewDispute({ bureau: '', account: '', reason: '', dateSent: new Date().toISOString().split('T')[0], notes: '' });
+    setShowForm(false);
+  };
+  
+  const updateStatus = (id: string, status: Dispute['status']) => {
+    saveDisputes(disputes.map(d => d.id === id ? { ...d, status } : d));
+  };
+  
+  const deleteDispute = (id: string) => {
+    if (confirm('Delete this dispute?')) {
+      saveDisputes(disputes.filter(d => d.id !== id));
     }
   };
-
-  const updateDisputeStatus = async (id: string, status: Dispute['status'], responseSummary?: string) => {
-    const supabase = createClient();
-    
-    const updates: any = { status };
-    if (status === 'responded' || status === 'resolved') {
-      updates.response_date = new Date().toISOString().split('T')[0];
-    }
-    if (responseSummary) {
-      updates.response_summary = responseSummary;
-    }
-    
-    await supabase
-      .from('dispute_tracking')
-      .update(updates)
-      .eq('id', id);
-    
-    setDisputes(disputes.map(d => d.id === id ? { ...d, ...updates } : d));
-  };
-
-  const getDaysUntilDeadline = (deadline: string) => {
-    const now = new Date();
-    const dead = new Date(deadline);
-    const diff = Math.ceil((dead.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  const getDaysRemaining = (deadline: string) => {
+    const today = new Date();
+    const deadlineDate = new Date(deadline);
+    const diff = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     return diff;
   };
-
-  const getStatusColor = (status: Dispute['status']) => {
-    switch (status) {
-      case 'pending': return 'text-yellow-400';
-      case 'responded': return 'text-blue-400';
-      case 'resolved': return 'text-green-400';
-      case 'escalated': return 'text-orange-400';
-      case 'overdue': return 'text-red-400';
-      default: return 'text-gray-400';
-    }
+  
+  const getDeadlineColor = (days: number) => {
+    if (days < 0) return 'text-red-500';
+    if (days <= 5) return 'text-orange-500';
+    if (days <= 10) return 'text-yellow-500';
+    return 'text-green-500';
   };
-
-  const filteredDisputes = filter === 'all' 
-    ? disputes 
-    : disputes.filter(d => d.status === filter);
-
-  const pendingCount = disputes.filter(d => d.status === 'pending').length;
-  const overdueCount = disputes.filter(d => d.status === 'overdue').length;
-  const resolvedCount = disputes.filter(d => d.status === 'resolved').length;
-
+  
+  // Stats
+  const stats = {
+    total: disputes.length,
+    pending: disputes.filter(d => d.status === 'pending').length,
+    won: disputes.filter(d => d.status === 'won').length,
+    winRate: disputes.length > 0 
+      ? Math.round((disputes.filter(d => d.status === 'won').length / disputes.filter(d => d.status !== 'pending').length) * 100) || 0
+      : 0,
+  };
+  
+  const overdue = disputes.filter(d => d.status === 'pending' && getDaysRemaining(d.deadline) < 0);
+  const urgent = disputes.filter(d => d.status === 'pending' && getDaysRemaining(d.deadline) >= 0 && getDaysRemaining(d.deadline) <= 5);
+  
   return (
     <div className="min-h-screen bg-knight-black py-8">
-      <div className="container-knight">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gradient-gold mb-2">📅 Knight Tracker</h1>
-          <p className="text-gray-400">Track your disputes and never miss a deadline</p>
-          <div className="mt-4 flex gap-2 flex-wrap">
-            <div className="badge-gold">30-Day Deadlines</div>
-            <div className="badge-gold">Auto-Reminders</div>
-            <div className="badge-gold">FCRA Compliant</div>
-            {isPrime && <div className="premium-badge">⭐ Unlimited Tracking</div>}
-          </div>
+      <div className="container-knight max-w-5xl">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gradient-gold mb-4">📊 Knight Tracker</h1>
+          <p className="text-gray-400">Track Your Disputes & Never Miss a Deadline</p>
         </div>
-
+        
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-knight-gold">{disputes.length}</div>
-              <div className="text-gray-400 text-sm">Total Disputes</div>
-            </div>
+          <Card className="text-center">
+            <div className="text-3xl font-bold text-white">{stats.total}</div>
+            <div className="text-gray-400 text-sm">Total Disputes</div>
           </Card>
-          <Card>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-yellow-400">{pendingCount}</div>
-              <div className="text-gray-400 text-sm">Pending</div>
-            </div>
+          <Card className="text-center">
+            <div className="text-3xl font-bold text-yellow-500">{stats.pending}</div>
+            <div className="text-gray-400 text-sm">Pending</div>
           </Card>
-          <Card>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-red-400">{overdueCount}</div>
-              <div className="text-gray-400 text-sm">Overdue</div>
-            </div>
+          <Card className="text-center">
+            <div className="text-3xl font-bold text-green-500">{stats.won}</div>
+            <div className="text-gray-400 text-sm">Victories</div>
           </Card>
-          <Card>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-400">{resolvedCount}</div>
-              <div className="text-gray-400 text-sm">Resolved</div>
-            </div>
+          <Card className="text-center">
+            <div className="text-3xl font-bold text-knight-gold">{stats.winRate}%</div>
+            <div className="text-gray-400 text-sm">Win Rate</div>
           </Card>
         </div>
-
-        {/* Controls */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <Button onClick={() => setShowAddForm(!showAddForm)} size="lg">
-            {showAddForm ? '✖️ Cancel' : '➕ Add Dispute'}
-          </Button>
-          
-          <Select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            options={[
-              { value: 'all', label: 'All Disputes' },
-              { value: 'pending', label: '🟡 Pending' },
-              { value: 'overdue', label: '🔴 Overdue' },
-              { value: 'responded', label: '🔵 Responded' },
-              { value: 'resolved', label: '🟢 Resolved' },
-              { value: 'escalated', label: '🟠 Escalated' },
-            ]}
-          />
-        </div>
-
-        {/* Add Form */}
-        {showAddForm && (
-          <Card className="mb-8">
-            <h2 className="text-2xl font-bold text-knight-gold mb-6">Log New Dispute</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select
-                label="Bureau"
-                value={newDispute.bureau}
-                onChange={(e) => setNewDispute({...newDispute, bureau: e.target.value})}
-                options={[
-                  { value: 'TransUnion', label: 'TransUnion' },
-                  { value: 'Equifax', label: 'Equifax' },
-                  { value: 'Experian', label: 'Experian' },
-                ]}
-              />
-              
-              <Input
-                label="Creditor/Furnisher"
-                value={newDispute.creditor}
-                onChange={(e) => setNewDispute({...newDispute, creditor: e.target.value})}
-                placeholder="e.g., Navient, Capital One"
-                required
-              />
-              
-              <Input
-                label="Account Number (last 4)"
-                value={newDispute.account_number}
-                onChange={(e) => setNewDispute({...newDispute, account_number: e.target.value})}
-                placeholder="Optional"
-              />
-              
-              <Select
-                label="Dispute Type"
-                value={newDispute.dispute_type}
-                onChange={(e) => setNewDispute({...newDispute, dispute_type: e.target.value})}
-                options={[
-                  { value: 'inaccurate_info', label: 'Inaccurate Information' },
-                  { value: 'not_mine', label: 'Not My Account' },
-                  { value: 'wrong_balance', label: 'Wrong Balance' },
-                  { value: 'wrong_status', label: 'Wrong Payment Status' },
-                  { value: 'outdated', label: 'Outdated (7+ years)' },
-                  { value: 'metro2', label: 'Metro 2 Violation' },
-                  { value: 'deferment', label: 'Missing Deferment Code' },
-                  { value: 'inquiry', label: 'Unauthorized Inquiry' },
-                  { value: 'other', label: 'Other' },
-                ]}
-              />
-              
-              <Select
-                label="Method Sent"
-                value={newDispute.method}
-                onChange={(e) => setNewDispute({...newDispute, method: e.target.value})}
-                options={[
-                  { value: 'mail', label: '📮 Certified Mail' },
-                  { value: 'online', label: '💻 Online Portal' },
-                  { value: 'phone', label: '📞 Phone' },
-                  { value: 'fax', label: '📠 Fax' },
-                ]}
-              />
-              
-              <Input
-                label="Date Sent"
-                type="date"
-                value={newDispute.date_sent}
-                onChange={(e) => setNewDispute({...newDispute, date_sent: e.target.value})}
-              />
-              
-              <Input
-                label="Tracking Number"
-                value={newDispute.tracking_number}
-                onChange={(e) => setNewDispute({...newDispute, tracking_number: e.target.value})}
-                placeholder="USPS tracking #"
-              />
+        
+        {/* Alerts */}
+        {overdue.length > 0 && (
+          <Card className="mb-6 border-2 border-red-500 bg-red-500/10">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🚨</span>
+              <div>
+                <h3 className="text-red-400 font-bold">OVERDUE RESPONSES!</h3>
+                <p className="text-gray-300 text-sm">
+                  {overdue.length} dispute(s) are past the 30-day deadline. 
+                  This may be an FCRA violation! Consider escalating to CFPB.
+                </p>
+              </div>
             </div>
-            
-            <Textarea
-              label="Notes"
-              value={newDispute.notes}
-              onChange={(e) => setNewDispute({...newDispute, notes: e.target.value})}
-              rows={3}
-              placeholder="Any additional details..."
-              className="mt-4"
-            />
-            
-            <Button
-              onClick={handleAddDispute}
-              disabled={!newDispute.creditor}
-              fullWidth
-              size="lg"
-              className="mt-6"
-            >
-              ➕ Add Dispute (+10 pts)
-            </Button>
           </Card>
         )}
-
+        
+        {urgent.length > 0 && (
+          <Card className="mb-6 border-2 border-orange-500 bg-orange-500/10">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">⚠️</span>
+              <div>
+                <h3 className="text-orange-400 font-bold">Deadlines Approaching!</h3>
+                <p className="text-gray-300 text-sm">
+                  {urgent.length} dispute(s) have deadlines within 5 days. Watch your mailbox!
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+        
+        {/* Add New Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn-knight"
+          >
+            {showForm ? '✕ Cancel' : '+ Add New Dispute'}
+          </button>
+        </div>
+        
+        {/* Add Form */}
+        {showForm && (
+          <Card className="mb-6">
+            <h2 className="text-xl font-bold text-white mb-4">📝 New Dispute</h2>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Bureau</label>
+                <select
+                  value={newDispute.bureau}
+                  onChange={(e) => setNewDispute({ ...newDispute, bureau: e.target.value })}
+                  className="w-full bg-knight-hover border border-knight-gold-dark rounded-lg p-3 text-white"
+                >
+                  <option value="">Select Bureau</option>
+                  {BUREAUS.map(b => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Account/Creditor Name</label>
+                <input
+                  type="text"
+                  value={newDispute.account}
+                  onChange={(e) => setNewDispute({ ...newDispute, account: e.target.value })}
+                  placeholder="e.g., Capital One Visa"
+                  className="w-full bg-knight-hover border border-knight-gold-dark rounded-lg p-3 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Dispute Reason</label>
+                <select
+                  value={newDispute.reason}
+                  onChange={(e) => setNewDispute({ ...newDispute, reason: e.target.value })}
+                  className="w-full bg-knight-hover border border-knight-gold-dark rounded-lg p-3 text-white"
+                >
+                  <option value="">Select Reason</option>
+                  {DISPUTE_REASONS.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Date Sent</label>
+                <input
+                  type="date"
+                  value={newDispute.dateSent}
+                  onChange={(e) => setNewDispute({ ...newDispute, dateSent: e.target.value })}
+                  className="w-full bg-knight-hover border border-knight-gold-dark rounded-lg p-3 text-white"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-gray-400 text-sm mb-1">Notes (optional)</label>
+                <textarea
+                  value={newDispute.notes}
+                  onChange={(e) => setNewDispute({ ...newDispute, notes: e.target.value })}
+                  placeholder="Any additional notes..."
+                  className="w-full bg-knight-hover border border-knight-gold-dark rounded-lg p-3 text-white resize-none"
+                  rows={2}
+                />
+              </div>
+            </div>
+            <button
+              onClick={addDispute}
+              disabled={!newDispute.bureau || !newDispute.account}
+              className="btn-knight mt-4 disabled:opacity-50"
+            >
+              ✅ Save Dispute
+            </button>
+          </Card>
+        )}
+        
         {/* Disputes List */}
-        {loading ? (
-          <Card className="text-center py-12">
-            <div className="text-4xl mb-4">⏳</div>
-            <p className="text-gray-400">Loading your disputes...</p>
-          </Card>
-        ) : filteredDisputes.length === 0 ? (
-          <Card className="text-center py-12">
-            <div className="text-6xl mb-4">📅</div>
-            <h3 className="text-2xl font-bold text-knight-gold mb-2">No Disputes Tracked</h3>
-            <p className="text-gray-400 mb-6">
-              Start tracking your disputes to never miss a deadline
-            </p>
-            <Button onClick={() => setShowAddForm(true)}>
-              Add Your First Dispute
-            </Button>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {filteredDisputes.map((dispute) => {
-              const daysLeft = getDaysUntilDeadline(dispute.deadline);
-              const isUrgent = daysLeft <= 5 && daysLeft > 0;
+        <div className="space-y-4">
+          {disputes.length === 0 ? (
+            <Card className="text-center py-12">
+              <div className="text-5xl mb-4">📋</div>
+              <h3 className="text-xl font-bold text-white mb-2">No Disputes Yet</h3>
+              <p className="text-gray-400 mb-4">Start tracking your dispute letters to never miss a deadline!</p>
+              <button onClick={() => setShowForm(true)} className="btn-knight">
+                + Add Your First Dispute
+              </button>
+            </Card>
+          ) : (
+            disputes.map((dispute) => {
+              const days = getDaysRemaining(dispute.deadline);
+              const statusInfo = STATUS_INFO[dispute.status];
+              const bureau = BUREAUS.find(b => b.name === dispute.bureau);
               
               return (
-                <Card 
-                  key={dispute.id} 
-                  className={`${
-                    dispute.status === 'overdue' ? 'border-2 border-red-500' :
-                    isUrgent ? 'border-2 border-yellow-500' : ''
-                  }`}
-                >
+                <Card key={dispute.id}>
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-xl font-bold text-white">{dispute.bureau}</span>
-                        <span className={`text-sm font-bold uppercase ${getStatusColor(dispute.status)}`}>
-                          {dispute.status}
-                        </span>
-                        {dispute.status === 'overdue' && (
-                          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded animate-pulse">
-                            ⚠️ FCRA VIOLATION!
-                          </span>
-                        )}
-                        {isUrgent && dispute.status === 'pending' && (
-                          <span className="bg-yellow-500 text-black text-xs px-2 py-1 rounded">
-                            ⏰ {daysLeft} days left!
-                          </span>
-                        )}
+                    <div className="flex items-start gap-4">
+                      {/* Bureau Badge */}
+                      <div className={`${bureau?.color || 'bg-gray-600'} w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold`}>
+                        {dispute.bureau.charAt(0)}
                       </div>
                       
-                      <div className="text-gray-400 text-sm space-y-1">
-                        <p><strong className="text-gray-300">Creditor:</strong> {dispute.creditor}</p>
-                        {dispute.account_number && (
-                          <p><strong className="text-gray-300">Account:</strong> ****{dispute.account_number}</p>
-                        )}
-                        <p><strong className="text-gray-300">Sent:</strong> {formatDate(dispute.date_sent)} via {dispute.method}</p>
-                        <p>
-                          <strong className="text-gray-300">Deadline:</strong>{' '}
-                          <span className={daysLeft < 0 ? 'text-red-400' : daysLeft <= 5 ? 'text-yellow-400' : 'text-white'}>
-                            {formatDate(dispute.deadline)} ({daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`})
-                          </span>
-                        </p>
-                        {dispute.tracking_number && (
-                          <p><strong className="text-gray-300">Tracking:</strong> {dispute.tracking_number}</p>
-                        )}
+                      <div>
+                        <h3 className="text-white font-bold">{dispute.account}</h3>
+                        <p className="text-gray-400 text-sm">{dispute.bureau} • {dispute.reason}</p>
+                        <div className="flex items-center gap-4 mt-2 text-sm">
+                          <span className="text-gray-500">Sent: {dispute.dateSent}</span>
+                          {dispute.status === 'pending' && (
+                            <span className={getDeadlineColor(days)}>
+                              {days < 0 
+                                ? `⚠️ ${Math.abs(days)} days OVERDUE!` 
+                                : `⏱️ ${days} days remaining`}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     
-                    <div className="flex flex-col gap-2">
-                      {dispute.status === 'pending' && (
-                        <>
-                          <Button
-                            onClick={() => updateDisputeStatus(dispute.id, 'responded')}
-                            variant="gold-outline"
-                            size="sm"
-                          >
-                            📩 Got Response
-                          </Button>
-                          <Button
-                            onClick={() => updateDisputeStatus(dispute.id, 'resolved')}
-                            size="sm"
-                          >
-                            ✅ Resolved
-                          </Button>
-                        </>
-                      )}
-                      {dispute.status === 'responded' && (
-                        <>
-                          <Button
-                            onClick={() => updateDisputeStatus(dispute.id, 'resolved')}
-                            size="sm"
-                          >
-                            ✅ Mark Resolved
-                          </Button>
-                          <Button
-                            onClick={() => updateDisputeStatus(dispute.id, 'escalated')}
-                            variant="gold-outline"
-                            size="sm"
-                          >
-                            ⬆️ Escalate
-                          </Button>
-                        </>
-                      )}
-                      {dispute.status === 'overdue' && (
-                        <Button href="/tools/dispute" size="sm">
-                          📝 Generate FCRA Letter
-                        </Button>
-                      )}
+                    <div className="flex items-center gap-2">
+                      {/* Status Badge */}
+                      <span className={`${statusInfo.color} text-white px-3 py-1 rounded-full text-sm font-bold`}>
+                        {statusInfo.icon} {statusInfo.label}
+                      </span>
+                      
+                      {/* Status Dropdown */}
+                      <select
+                        value={dispute.status}
+                        onChange={(e) => updateStatus(dispute.id, e.target.value as Dispute['status'])}
+                        className="bg-knight-hover border border-knight-gold-dark rounded-lg px-2 py-1 text-white text-sm"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="responded">Responded</option>
+                        <option value="won">Won ✓</option>
+                        <option value="lost">Denied</option>
+                        <option value="escalated">Escalated</option>
+                      </select>
+                      
+                      {/* Delete */}
+                      <button
+                        onClick={() => deleteDispute(dispute.id)}
+                        className="text-red-400 hover:text-red-300 p-2"
+                      >
+                        🗑️
+                      </button>
                     </div>
                   </div>
                   
                   {dispute.notes && (
-                    <div className="mt-4 pt-4 border-t border-knight-gold-dark">
-                      <p className="text-sm text-gray-400"><strong>Notes:</strong> {dispute.notes}</p>
-                    </div>
-                  )}
-                  
-                  {dispute.response_summary && (
-                    <div className="mt-4 pt-4 border-t border-knight-gold-dark">
-                      <p className="text-sm text-gray-400"><strong>Response:</strong> {dispute.response_summary}</p>
-                    </div>
+                    <p className="text-gray-500 text-sm mt-3 pt-3 border-t border-knight-gold-dark">
+                      📝 {dispute.notes}
+                    </p>
                   )}
                 </Card>
               );
-            })}
-          </div>
-        )}
+            })
+          )}
+        </div>
         
-        {/* Help Section */}
+        {/* Tips */}
         <Card className="mt-8">
-          <h3 className="text-xl font-bold text-knight-gold mb-4">📚 Understanding the 30-Day Rule</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-400">
-            <div>
-              <h4 className="font-bold text-white mb-2">FCRA § 1681i Timeline</h4>
-              <ul className="space-y-1">
-                <li>• Bureau has <strong className="text-white">30 days</strong> to investigate</li>
-                <li>• Can extend to 45 days if you send additional info</li>
-                <li>• Must notify you of results within 5 days of completion</li>
-              </ul>
+          <h2 className="text-xl font-bold text-white mb-4">💡 Tracking Tips</h2>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-knight-hover rounded-lg p-4">
+              <h3 className="text-knight-gold font-bold mb-2">📬 Always Use Certified Mail</h3>
+              <p className="text-gray-400 text-sm">
+                Send disputes via Certified Mail with Return Receipt. 
+                This proves they received your dispute and starts the 30-day clock.
+              </p>
             </div>
-            <div>
-              <h4 className="font-bold text-white mb-2">If They Miss the Deadline</h4>
-              <ul className="space-y-1">
-                <li>• This is an <strong className="text-red-400">FCRA violation</strong></li>
-                <li>• They must delete the disputed item</li>
-                <li>• You may be entitled to damages</li>
-                <li>• File CFPB complaint immediately</li>
-              </ul>
+            <div className="bg-knight-hover rounded-lg p-4">
+              <h3 className="text-knight-gold font-bold mb-2">📅 The 30-Day Rule</h3>
+              <p className="text-gray-400 text-sm">
+                Bureaus have 30 days to respond (45 if you included documents). 
+                No response = potential FCRA violation!
+              </p>
+            </div>
+            <div className="bg-knight-hover rounded-lg p-4">
+              <h3 className="text-knight-gold font-bold mb-2">📁 Save Everything</h3>
+              <p className="text-gray-400 text-sm">
+                Use Knight Vault to store copies of all letters, responses, and receipts. 
+                Documentation is crucial for any legal action.
+              </p>
+            </div>
+            <div className="bg-knight-hover rounded-lg p-4">
+              <h3 className="text-knight-gold font-bold mb-2">⚡ Escalate When Needed</h3>
+              <p className="text-gray-400 text-sm">
+                If bureaus don't respond properly, file a complaint with the CFPB at consumerfinance.gov.
+              </p>
             </div>
           </div>
         </Card>
