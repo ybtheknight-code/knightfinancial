@@ -46,7 +46,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
         id, username, first_name, last_name, role, is_prime, points, avatar_url
       )
     `)
-    .eq('post_id', params.id)
+    .eq('post_id', id)
     .eq('deleted', false)
     .order('created_at', { ascending: true });
   
