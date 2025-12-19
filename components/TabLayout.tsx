@@ -171,8 +171,10 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
   const activeTab = TABS.find(t => pathname.startsWith(t.path))?.id || 'home';
 
   const getAvatar = () => {
-    if (user.avatar_url) return user.avatar_url;
-    return user.first_name?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || '?';
+    const getAvatar = () => {
+  if (user?.avatar_url) return user.avatar_url;
+  return user?.first_name?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || '?';
+};
   };
 
   return (
