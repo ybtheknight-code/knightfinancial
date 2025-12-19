@@ -20,7 +20,7 @@ export default function ServicesPage() {
         '💰 Credit Builder Card Recommendations',
       ],
       color: 'from-blue-600 to-blue-800',
-      jotformLink: 'https://form.jotform.com/250656318498165', // STARTER form
+    jotformLink: 'https://form.jotform.com/253493613919062', // STANDARD
       popular: false,
     },
     {
@@ -42,7 +42,7 @@ export default function ServicesPage() {
         '📈 Utilization Optimization',
       ],
       color: 'from-knight-gold to-yellow-600',
-      jotformLink: 'https://form.jotform.com/250656318498165', // WARRIOR form
+      jotformLink: 'https://form.jotform.com/253493757778074', // PROFESSIONAL
       popular: true,
     },
     {
@@ -68,7 +68,7 @@ export default function ServicesPage() {
         '👨‍🏫 6-Month Personal Coaching',
       ],
       color: 'from-purple-600 to-pink-600',
-      jotformLink: 'https://form.jotform.com/250656318498165', // CHAMPION form
+      jotformLink: 'https://form.jotform.com/253493603801051', // EXECUTIVE
       popular: false,
     },
   ];
