@@ -1,397 +1,281 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Card from '@/components/Card';
-import Button from '@/components/Button';
-import { Textarea, Select } from '@/components/Input';
-import { createClient } from '@/lib/supabase';
+
+interface DecoderQuestion {
+  id: string;
+  question: string;
+  options: { value: string; label: string; meaning: string; action: string }[];
+}
+
+const RESPONSE_TYPES = [
+  { id: 'verified', label: '✅ Account Verified', icon: '✅' },
+  { id: 'updated', label: '🔄 Account Updated', icon: '🔄' },
+  { id: 'deleted', label: '🗑️ Account Deleted', icon: '🗑️' },
+  { id: 'remains', label: '⚠️ Remains / No Change', icon: '⚠️' },
+  { id: 'frivolous', label: '🚫 Frivolous / Not Investigated', icon: '🚫' },
+  { id: 'reinvestigation', label: '📋 Reinvestigation Results', icon: '📋' },
+];
+
+const DECODER_ANALYSIS: Record<string, { title: string; meaning: string; action: string; nextSteps: string[]; victory: boolean }> = {
+  'verified': {
+    title: '❌ Bad News: Account Verified as Accurate',
+    meaning: 'The bureau contacted the creditor who confirmed the information. However, "verified" does NOT mean they actually investigated properly.',
+    action: 'Challenge the verification method! Under FCRA §611, they must conduct a REASONABLE investigation.',
+    nextSteps: [
+      'Send Method of Verification (MOV) request letter',
+      'Ask specifically HOW they verified (phone? electronic?)',
+      'Request name and contact of person who verified',
+      'If they can\'t provide MOV details, dispute again citing procedural failure',
+      'Consider escalating to CFPB complaint',
+    ],
+    victory: false,
+  },
+  'updated': {
+    title: '🔄 Partial Win: Account Was Updated',
+    meaning: 'The creditor made changes to how the account is being reported. This could be a date change, balance update, or status change.',
+    action: 'Review EXACTLY what changed. If it\'s still negative, dispute again on different grounds.',
+    nextSteps: [
+      'Get fresh credit report to see what changed',
+      'Compare old vs new reporting',
+      'If still inaccurate, dispute the NEW inaccuracy',
+      'Document this as evidence they CAN make changes',
+      'Use this in any future disputes as proof of errors',
+    ],
+    victory: false,
+  },
+  'deleted': {
+    title: '🏆 VICTORY! Account Deleted!',
+    meaning: 'The negative item has been REMOVED from your credit report! This is the best possible outcome.',
+    action: 'Celebrate! But verify the deletion and protect your win.',
+    nextSteps: [
+      'Get updated credit report to CONFIRM deletion',
+      'Check ALL THREE bureaus (may need to dispute others)',
+      'Save proof of deletion for your records',
+      'Monitor for 90 days - sometimes items get re-inserted',
+      'If re-inserted, send "Re-Insertion" dispute letter immediately',
+    ],
+    victory: true,
+  },
+  'remains': {
+    title: '⚠️ No Change: Account Remains',
+    meaning: 'The bureau claims the account is accurate and made no changes. But this doesn\'t mean you\'re done!',
+    action: 'This is NOT the end. Escalate with more specific disputes.',
+    nextSteps: [
+      'Dispute with DIFFERENT reasons (dates, amounts, status codes)',
+      'Send direct dispute to the CREDITOR (not just bureau)',
+      'File CFPB complaint citing failure to investigate',
+      'Request your complete file disclosure',
+      'Check for Metro 2 violations (Field 15, 16, 21, 22)',
+      'Consider legal consultation for FCRA violation',
+    ],
+    victory: false,
+  },
+  'frivolous': {
+    title: '🚫 Dispute Deemed Frivolous',
+    meaning: 'The bureau claims your dispute lacks sufficient information or is repetitive. This is often a VIOLATION of your rights!',
+    action: 'Fight back! Bureaus overuse "frivolous" to avoid investigating.',
+    nextSteps: [
+      'Send "Frivolous Response Challenge" letter',
+      'Include MORE documentation with next dispute',
+      'Cite FCRA §611(a)(3) - they must investigate unless frivolous',
+      'File CFPB complaint - frivolous findings are often improper',
+      'Document EVERYTHING for potential lawsuit',
+      'Consult attorney - improper frivolous = damages',
+    ],
+    victory: false,
+  },
+  'reinvestigation': {
+    title: '📋 Reinvestigation Results Received',
+    meaning: 'You received the results of a reinvestigation. Review carefully for what changed or stayed the same.',
+    action: 'Analyze every detail of the reinvestigation report.',
+    nextSteps: [
+      'Compare each field to original report',
+      'Note ANY changes (even small ones) as evidence',
+      'If still inaccurate, prepare Round 2 dispute',
+      'Request the METHOD of verification used',
+      'Check if they investigated ALL items you disputed',
+    ],
+    victory: false,
+  },
+};
+
+const BUREAU_CODES: Record<string, { code: string; meaning: string }[]> = {
+  'TransUnion': [
+    { code: 'XB', meaning: 'Account verified as belonging to consumer' },
+    { code: 'XC', meaning: 'Account deleted' },
+    { code: 'XD', meaning: 'Account updated' },
+    { code: 'XE', meaning: 'Investigation in progress' },
+    { code: 'XR', meaning: 'Reinvestigation in process' },
+  ],
+  'Equifax': [
+    { code: 'Verified', meaning: 'Account verified as accurate' },
+    { code: 'Deleted', meaning: 'Account removed from file' },
+    { code: 'Modified', meaning: 'Account information updated' },
+    { code: 'Consumer Statement Added', meaning: 'Your statement was added' },
+  ],
+  'Experian': [
+    { code: 'Verified as Accurate', meaning: 'Creditor confirmed information' },
+    { code: 'Deleted', meaning: 'Item removed' },
+    { code: 'Updated', meaning: 'Information changed' },
+    { code: 'Disputed by Consumer', meaning: 'Dispute notation added' },
+  ],
+};
 
 export default function DecoderPage() {
-  const [responseText, setResponseText] = useState('');
-  const [responseType, setResponseType] = useState('bureau');
-  const [decoding, setDecoding] = useState(false);
-  const [results, setResults] = useState<any>(null);
-  const [isPrime, setIsPrime] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState('');
-
-  useEffect(() => {
-    const checkPrime = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('is_prime, role')
-          .eq('id', user.id)
-          .single();
-        if (profile) {
-          setIsPrime(profile.is_prime || ['admin', 'executive', 'ceo'].includes(profile.role));
-        }
-      }
-    };
-    checkPrime();
-  }, []);
-
-  const handleDecode = async () => {
-    if (!responseText.trim()) return;
-    
-    setDecoding(true);
-    setAiAnalysis('');
-    
-    // Simulate decoding
-    setTimeout(() => {
-      const lowerText = responseText.toLowerCase();
-      
-      // Detect response patterns
-      const isVerified = lowerText.includes('verified') || lowerText.includes('confirmed');
-      const isDeleted = lowerText.includes('deleted') || lowerText.includes('removed');
-      const isUpdated = lowerText.includes('updated') || lowerText.includes('modified');
-      const isFrivolous = lowerText.includes('frivolous') || lowerText.includes('repeatedly');
-      const isPending = lowerText.includes('investigating') || lowerText.includes('pending');
-      
-      let verdict = 'unknown';
-      let verdictColor = 'yellow';
-      let explanation = '';
-      let nextSteps: string[] = [];
-      
-      if (isDeleted) {
-        verdict = 'VICTORY! 🏆';
-        verdictColor = 'green';
-        explanation = 'The bureau has agreed to delete or remove the disputed information.';
-        nextSteps = [
-          'Request updated credit report to confirm deletion',
-          'Document this victory in Knight Tracker',
-          'Check all three bureaus to ensure consistency',
-          'Celebrate! You earned +50 points for items deleted',
-        ];
-      } else if (isUpdated) {
-        verdict = 'PARTIAL WIN ✓';
-        verdictColor = 'green';
-        explanation = 'The bureau has updated/modified some information, but may not have fully addressed your dispute.';
-        nextSteps = [
-          'Review what exactly was updated',
-          'If not fully corrected, file a follow-up dispute',
-          'Document in Knight Tracker',
-          'Consider escalating to CFPB if unsatisfied',
-        ];
-      } else if (isVerified) {
-        verdict = 'VERIFIED (Denied) ⚠️';
-        verdictColor = 'red';
-        explanation = 'The bureau claims the information was "verified" with the furnisher. This is often a cursory check, not a real investigation.';
-        nextSteps = [
-          'Request METHOD of verification (your right under FCRA)',
-          'File a complaint with CFPB citing inadequate investigation',
-          'Send escalation letter citing Cushman v. Trans Union',
-          'Prepare for potential litigation if pattern continues',
-        ];
-      } else if (isFrivolous) {
-        verdict = 'FRIVOLOUS CLAIM ❌';
-        verdictColor = 'red';
-        explanation = 'The bureau is claiming your dispute is "frivolous" to avoid investigating. This is often improper.';
-        nextSteps = [
-          'This may be an FCRA violation - bureaus cannot easily dismiss disputes',
-          'File immediate CFPB complaint',
-          'Send demand letter citing FCRA § 1681i requirements',
-          'Document for potential lawsuit',
-        ];
-      } else if (isPending) {
-        verdict = 'PENDING ⏳';
-        verdictColor = 'yellow';
-        explanation = 'The investigation is still ongoing. They have 30 days from receipt to respond.';
-        nextSteps = [
-          'Mark deadline in Knight Tracker',
-          'Prepare follow-up materials',
-          'If no response by day 31, this is an FCRA violation',
-        ];
-      } else {
-        verdict = 'UNCLEAR RESPONSE';
-        verdictColor = 'yellow';
-        explanation = 'The response does not clearly indicate a resolution. This may require further analysis.';
-        nextSteps = [
-          'Use Knight AI for deeper analysis (Prime feature)',
-          'Re-read carefully for hidden meanings',
-          'Consider calling the bureau for clarification',
-          'May need legal consultation',
-        ];
-      }
-      
-      setResults({
-        verdict,
-        verdictColor,
-        explanation,
-        nextSteps,
-        responseType,
-        analyzedAt: new Date().toISOString(),
-        keyPhrases: [
-          isVerified && '"Verified" - They claim they checked',
-          isDeleted && '"Deleted/Removed" - Victory indicator',
-          isUpdated && '"Updated/Modified" - Partial win',
-          isFrivolous && '"Frivolous" - Possible FCRA violation',
-          isPending && '"Investigating" - Still pending',
-        ].filter(Boolean),
-      });
-      
-      setDecoding(false);
-    }, 2000);
-  };
-
-  const handleKnightAI = () => {
-    if (!isPrime || !results) return;
-    
-    setAiAnalysis('Analyzing...');
-    
-    setTimeout(() => {
-      setAiAnalysis(`🤖 **KNIGHT AI LEGAL ANALYSIS**
-
-**Response Classification:** ${results.verdict}
-
-**Legal Assessment:**
-Based on my analysis of thousands of bureau responses, here's what this response means for your case:
-
-${results.verdictColor === 'red' ? `
-⚠️ **WARNING: Potential FCRA Violations Detected**
-
-The bureau's response suggests they may not have conducted a proper "reasonable reinvestigation" as required by FCRA § 1681i. Key issues:
-
-1. **Verification Without Investigation**
-   Courts have held that simply "parroting" what a furnisher says is NOT a reasonable reinvestigation. See *Cushman v. Trans Union Corp.*, 115 F.3d 220 (3d Cir. 1997).
-
-2. **Documentation Request**
-   Under FCRA § 1681i(a)(6)(B)(iii), you have the right to request the METHOD of verification. If they can't explain HOW they verified, that's evidence of inadequate investigation.
-
-**Litigation Strength Score: 7.5/10** ⚖️
-
-**Recommended Legal Citations:**
-• Cushman v. Trans Union Corp., 115 F.3d 220 (3d Cir. 1997)
-• Dennis v. BEH-1, LLC, 520 F.3d 1066 (9th Cir. 2008)
-• Gorman v. Wolpoff & Abramson, LLP, 584 F.3d 1147 (9th Cir. 2009)
-` : results.verdictColor === 'green' ? `
-✅ **POSITIVE OUTCOME ANALYSIS**
-
-Congratulations! This response indicates progress. Here's how to maximize this victory:
-
-1. **Document Everything**
-   Save this response in Knight Vault with timestamp
-   
-2. **Verify Across All Bureaus**
-   Deletion from one bureau doesn't automatically update others
-   
-3. **Check Credit Score**
-   Your score should improve within 30 days
-
-**Impact Assessment:**
-• Estimated score improvement: +15-40 points
-• Timeline for reflection: 30-45 days
-• Documentation value for future disputes: HIGH
-` : `
-🔍 **INCONCLUSIVE - DEEPER ANALYSIS NEEDED**
-
-This response is ambiguous. Common tactics bureaus use:
-• Vague language to avoid commitment
-• Partial responses that don't address all issues
-• Redirecting responsibility to furnisher
-
-**Recommended Action:** 
-File CFPB complaint citing incomplete response to ensure federal oversight of your case.
-`}
-
-**AI Confidence Level:** ${Math.floor(Math.random() * 15) + 85}%
-
-**Auto-Generated Next Steps:**
-${results.nextSteps.map((step: string, i: number) => `${i + 1}. ${step}`).join('\n')}
-      `);
-    }, 2000);
-  };
-
-  const handleReset = () => {
-    setResponseText('');
-    setResults(null);
-    setAiAnalysis('');
-  };
-
+  const [selectedResponse, setSelectedResponse] = useState<string | null>(null);
+  const [showCodes, setShowCodes] = useState(false);
+  
+  const analysis = selectedResponse ? DECODER_ANALYSIS[selectedResponse] : null;
+  
   return (
     <div className="min-h-screen bg-knight-black py-8">
-      <div className="container-knight max-w-5xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gradient-gold mb-2">🔍 Knight Decoder</h1>
-          <p className="text-gray-400">Decode bureau and creditor responses - understand what they really mean</p>
-          <div className="mt-4 flex gap-2 flex-wrap">
-            <div className="badge-gold">AI-Powered Analysis</div>
-            <div className="badge-gold">Legal Interpretation</div>
-            <div className="badge-gold">Next Step Guidance</div>
-            {isPrime && <div className="premium-badge">⭐ Knight AI</div>}
-          </div>
+      <div className="container-knight max-w-4xl">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gradient-gold mb-4">🔓 Knight Decoder</h1>
+          <p className="text-gray-400">Decode Bureau Responses & Plan Your Next Move</p>
         </div>
-
-        {!results ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <Card>
-                <h2 className="text-2xl font-bold text-knight-gold mb-6">Paste Response to Decode</h2>
-                
-                <Select
-                  label="Response Type"
-                  value={responseType}
-                  onChange={(e) => setResponseType(e.target.value)}
-                  options={[
-                    { value: 'bureau', label: 'Credit Bureau Response' },
-                    { value: 'creditor', label: 'Creditor/Furnisher Response' },
-                    { value: 'collector', label: 'Collection Agency Response' },
-                    { value: 'cfpb', label: 'CFPB Response' },
-                    { value: 'legal', label: 'Legal/Court Document' },
-                  ]}
-                  className="mb-4"
-                />
-                
-                <Textarea
-                  label="Response Text"
-                  value={responseText}
-                  onChange={(e) => setResponseText(e.target.value)}
-                  rows={12}
-                  placeholder="Paste the full text of the response you received...
-
-Example: 'We have completed our investigation of your dispute. The information you disputed has been verified as accurate. The creditor has confirmed the account information is correct as reported...'"
-                />
-                
-                <Button
-                  onClick={handleDecode}
-                  disabled={!responseText.trim()}
-                  loading={decoding}
-                  fullWidth
-                  size="lg"
-                  className="mt-6"
-                >
-                  🔍 Decode Response
-                </Button>
-              </Card>
+        
+        {/* Step 1: Select Response Type */}
+        <Card className="mb-6">
+          <h2 className="text-xl font-bold text-white mb-4">📬 Step 1: What response did you receive?</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {RESPONSE_TYPES.map((type) => (
+              <button
+                key={type.id}
+                onClick={() => setSelectedResponse(type.id)}
+                className={`p-4 rounded-lg border transition text-left ${
+                  selectedResponse === type.id
+                    ? 'border-knight-gold bg-knight-gold/20'
+                    : 'border-knight-gold-dark bg-knight-hover hover:border-knight-gold'
+                }`}
+              >
+                <div className="text-2xl mb-2">{type.icon}</div>
+                <div className="text-white text-sm font-bold">{type.label}</div>
+              </button>
+            ))}
+          </div>
+        </Card>
+        
+        {/* Analysis Result */}
+        {analysis && (
+          <Card className={`mb-6 ${analysis.victory ? 'border-2 border-green-500' : ''}`}>
+            {analysis.victory && (
+              <div className="bg-green-500/20 -mx-6 -mt-6 px-6 py-4 rounded-t-lg mb-4 text-center">
+                <span className="text-4xl">🏆</span>
+                <span className="text-2xl ml-2 text-green-400 font-bold">VICTORY!</span>
+              </div>
+            )}
+            
+            <h2 className="text-2xl font-bold text-white mb-4">{analysis.title}</h2>
+            
+            <div className="space-y-4">
+              <div className="bg-knight-hover rounded-lg p-4">
+                <h3 className="text-knight-gold font-bold mb-2">📖 What This Means:</h3>
+                <p className="text-gray-300">{analysis.meaning}</p>
+              </div>
+              
+              <div className="bg-knight-hover rounded-lg p-4">
+                <h3 className="text-knight-gold font-bold mb-2">⚔️ Your Action:</h3>
+                <p className="text-gray-300">{analysis.action}</p>
+              </div>
+              
+              <div className="bg-knight-hover rounded-lg p-4">
+                <h3 className="text-knight-gold font-bold mb-2">📋 Next Steps:</h3>
+                <ol className="space-y-2">
+                  {analysis.nextSteps.map((step, i) => (
+                    <li key={i} className="text-gray-300 flex items-start gap-2">
+                      <span className="text-knight-gold font-bold">{i + 1}.</span>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
             </div>
             
-            <div className="space-y-6">
-              <Card>
-                <h3 className="text-lg font-bold text-knight-gold mb-4">💡 What Decoder Does</h3>
-                <ul className="text-sm text-gray-400 space-y-2">
-                  <li>✓ Identifies response type (verified, deleted, etc.)</li>
-                  <li>✓ Explains what the response really means</li>
-                  <li>✓ Provides specific next steps</li>
-                  <li>✓ Detects potential FCRA violations</li>
-                  <li>✓ Suggests legal citations if needed</li>
-                </ul>
-              </Card>
-              
-              {isPrime && (
-                <Card premium>
-                  <div className="text-center mb-4">
-                    <div className="text-4xl mb-2">🤖</div>
-                    <h3 className="text-lg font-bold text-gradient-gold">Knight AI Analysis</h3>
-                  </div>
-                  <ul className="text-sm text-gray-400 space-y-2">
-                    <li>✓ Deep legal analysis</li>
-                    <li>✓ Case law citations</li>
-                    <li>✓ Litigation strength score</li>
-                    <li>✓ Customized legal strategy</li>
-                  </ul>
-                </Card>
+            {/* Action Buttons */}
+            <div className="flex flex-wrap gap-3 mt-6">
+              {!analysis.victory && (
+                <a href="/tools/dispute" className="btn-knight">
+                  ⚔️ Generate Follow-Up Letter
+                </a>
               )}
-              
-              <Card>
-                <h3 className="text-lg font-bold text-knight-gold mb-4">📋 Common Responses</h3>
-                <div className="space-y-3 text-sm">
-                  <div className="bg-green-900/30 p-3 rounded">
-                    <div className="font-bold text-green-400">"Deleted"</div>
-                    <div className="text-gray-400">Victory! Item removed</div>
-                  </div>
-                  <div className="bg-yellow-900/30 p-3 rounded">
-                    <div className="font-bold text-yellow-400">"Updated"</div>
-                    <div className="text-gray-400">Partial win - check details</div>
-                  </div>
-                  <div className="bg-red-900/30 p-3 rounded">
-                    <div className="font-bold text-red-400">"Verified"</div>
-                    <div className="text-gray-400">Denied - escalate!</div>
-                  </div>
-                </div>
-              </Card>
+              <a href="/tools/tracker" className="btn-knight-outline">
+                📊 Track This Dispute
+              </a>
+              <a href="/tools/vault" className="btn-knight-outline">
+                📁 Save Response
+              </a>
             </div>
-          </div>
-        ) : (
-          <>
-            {/* Results */}
-            <Card className={`border-2 ${
-              results.verdictColor === 'green' ? 'border-green-500' :
-              results.verdictColor === 'red' ? 'border-red-500' :
-              'border-yellow-500'
-            }`}>
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className={`text-3xl font-bold ${
-                    results.verdictColor === 'green' ? 'text-green-400' :
-                    results.verdictColor === 'red' ? 'text-red-400' :
-                    'text-yellow-400'
-                  }`}>
-                    {results.verdict}
-                  </h2>
-                  <p className="text-gray-400 mt-1">Response from: {responseType}</p>
-                </div>
-                <Button onClick={handleReset} variant="gold-outline">
-                  Decode Another
-                </Button>
-              </div>
-              
-              <div className="bg-knight-hover p-6 rounded-lg mb-6">
-                <h3 className="font-bold text-knight-gold mb-2">What This Means:</h3>
-                <p className="text-gray-300">{results.explanation}</p>
-              </div>
-              
-              {results.keyPhrases && results.keyPhrases.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="font-bold text-knight-gold mb-2">Key Phrases Detected:</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {results.keyPhrases.map((phrase: string, i: number) => (
-                      <span key={i} className="bg-knight-gold-dark px-3 py-1 rounded text-sm text-white">
-                        {phrase}
-                      </span>
+          </Card>
+        )}
+        
+        {/* Bureau Code Reference */}
+        <Card>
+          <button
+            onClick={() => setShowCodes(!showCodes)}
+            className="w-full flex items-center justify-between text-white font-bold"
+          >
+            <span>📚 Bureau Response Code Reference</span>
+            <span>{showCodes ? '▼' : '▶'}</span>
+          </button>
+          
+          {showCodes && (
+            <div className="mt-4 space-y-4">
+              {Object.entries(BUREAU_CODES).map(([bureau, codes]) => (
+                <div key={bureau} className="bg-knight-hover rounded-lg p-4">
+                  <h3 className="text-knight-gold font-bold mb-2">{bureau}</h3>
+                  <div className="space-y-1">
+                    {codes.map((code, i) => (
+                      <div key={i} className="text-sm">
+                        <span className="text-white font-mono bg-knight-black px-2 py-0.5 rounded">
+                          {code.code}
+                        </span>
+                        <span className="text-gray-400 ml-2">{code.meaning}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
-              )}
-              
-              <div className="mb-6">
-                <h3 className="font-bold text-knight-gold mb-3">📋 Recommended Next Steps:</h3>
-                <div className="space-y-3">
-                  {results.nextSteps.map((step: string, i: number) => (
-                    <div key={i} className="flex items-start gap-3 bg-knight-hover p-3 rounded">
-                      <span className="text-knight-gold font-bold">{i + 1}.</span>
-                      <span className="text-gray-300">{step}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="flex gap-4">
-                {isPrime && (
-                  <Button onClick={handleKnightAI} size="lg">
-                    🤖 Deep AI Analysis
-                  </Button>
-                )}
-                <Button href="/tools/dispute" variant="gold-outline" size="lg">
-                  ✍️ Generate Response Letter
-                </Button>
-                <Button href="/tools/tracker" variant="gold-outline" size="lg">
-                  📅 Log to Tracker
-                </Button>
-              </div>
-            </Card>
-            
-            {/* AI Analysis Panel */}
-            {aiAnalysis && (
-              <Card premium className="mt-6">
-                <h3 className="text-2xl font-bold text-gradient-gold mb-4">🤖 Knight AI Analysis</h3>
-                <div className="bg-knight-black p-6 rounded whitespace-pre-wrap text-gray-300">
-                  {aiAnalysis}
-                </div>
-              </Card>
-            )}
-          </>
-        )}
+              ))}
+            </div>
+          )}
+        </Card>
+        
+        {/* Pro Tips */}
+        <Card className="mt-6">
+          <h2 className="text-xl font-bold text-white mb-4">💡 Knight Pro Tips</h2>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-knight-hover rounded-lg p-4">
+              <h3 className="text-knight-gold font-bold mb-2">📅 The 30-Day Rule</h3>
+              <p className="text-gray-400 text-sm">
+                Bureaus have 30 days to investigate (45 if you send documents). 
+                If they take longer without notifying you, that's a VIOLATION!
+              </p>
+            </div>
+            <div className="bg-knight-hover rounded-lg p-4">
+              <h3 className="text-knight-gold font-bold mb-2">🎯 Method of Verification</h3>
+              <p className="text-gray-400 text-sm">
+                Always request HOW they verified. "We contacted the creditor" is NOT enough. 
+                They must provide specific details.
+              </p>
+            </div>
+            <div className="bg-knight-hover rounded-lg p-4">
+              <h3 className="text-knight-gold font-bold mb-2">📝 Documentation is King</h3>
+              <p className="text-gray-400 text-sm">
+                Keep EVERY letter, envelope (postmark dates!), and response. 
+                This is your evidence trail for potential litigation.
+              </p>
+            </div>
+            <div className="bg-knight-hover rounded-lg p-4">
+              <h3 className="text-knight-gold font-bold mb-2">🔄 Never Give Up</h3>
+              <p className="text-gray-400 text-sm">
+                "Verified" doesn't mean accurate! Dispute using different angles. 
+                Many victories come after 2-3 rounds of disputes.
+              </p>
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   );
