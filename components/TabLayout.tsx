@@ -228,7 +228,7 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
                       ⭐ Upgrade to Prime
                     </Link>
                   )}
-                  {['admin', 'executive', 'ceo'].includes(user?.role) && (
+                 {['admin', 'executive', 'ceo'].includes(user?.role || '') && (
                     <Link href="/admin" className="block px-4 py-3 text-red-400 hover:bg-knight-gold-dark transition">
                       🔴 Admin Panel
                     </Link>
