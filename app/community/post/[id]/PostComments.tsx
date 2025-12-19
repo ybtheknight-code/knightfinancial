@@ -16,16 +16,7 @@ interface Comment {
   created_at: string;
   user_id: string;
   parent_id: string | null;
-  user_profiles: {
-    id: string;
-    username: string | null;
-    first_name: string | null;
-    last_name: string | null;
-    role: string;
-    is_prime: boolean;
-    points: number;
-    avatar_url: string | null;
-  };
+  user_profiles: any;
 }
 
 interface PostCommentsProps {
