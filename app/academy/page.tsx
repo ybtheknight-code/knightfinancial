@@ -1,175 +1,165 @@
-import { requireAuth } from '@/lib/auth';
-import Card from '@/components/Card';
+import { createServerSupabaseClient } from '@/lib/supabase';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { generateCourses } from '@/lib/course-generator';
+import Card from '@/components/Card';
+import { FREE_COURSES, PRIME_COURSES, COURSE_CATEGORIES } from '@/lib/academy-courses';
 
 export default async function AcademyPage() {
-  const user = await requireAuth();
-  const courses = generateCourses();
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
   
-  const isPrime = user.is_prime || ['admin', 'executive', 'ceo'].includes(user.role);
+  if (!user) redirect('/login');
   
-  // Group by category
-  const categories = courses.reduce((acc, course) => {
-    if (!acc[course.category]) acc[course.category] = [];
-    acc[course.category].push(course);
-    return acc;
-  }, {} as Record<string, typeof courses>);
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('is_prime, courses_completed')
+    .eq('id', user.id)
+    .single();
   
-  const freeCourses = courses.filter(c => !c.premium);
-  const premiumCourses = courses.filter(c => c.premium);
+  const isPrime = profile?.is_prime || false;
+  const allCourses = [...FREE_COURSES, ...PRIME_COURSES];
+  const freeCount = FREE_COURSES.length;
+  const primeCount = PRIME_COURSES.length;
   
   return (
     <div className="min-h-screen bg-knight-black py-8">
       <div className="container-knight">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gradient-gold mb-2">📚 Knight Academy</h1>
-          <p className="text-gray-400">Master credit law, FCRA, and pro se litigation</p>
-          <div className="mt-4 flex gap-3 flex-wrap">
-            <div className="badge-gold">{freeCourses.length} FREE Courses</div>
-            <div className="badge-gold">{premiumCourses.length} PRIME Courses</div>
-            <div className="badge-gold">{courses.reduce((sum, c) => sum + c.lessons.length, 0)} Total Lessons</div>
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gradient-gold mb-4">📚 Knight Academy</h1>
+          <p className="text-gray-400 mb-4">Master credit repair with expert-level knowledge</p>
+          <div className="flex justify-center gap-4 text-sm">
+            <span className="bg-green-600/20 text-green-400 px-4 py-2 rounded-full">
+              ✅ {freeCount} FREE Courses
+            </span>
+            <span className="bg-knight-gold/20 text-knight-gold px-4 py-2 rounded-full">
+              👑 {primeCount} PRIME Courses
+            </span>
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <div className="text-3xl mb-2">🎓</div>
-            <div className="text-2xl font-bold text-knight-gold">{user.courses_completed || 0}</div>
-            <div className="text-sm text-gray-400">Courses Completed</div>
-          </Card>
-          
-          <Card>
-            <div className="text-3xl mb-2">⏱️</div>
-            <div className="text-2xl font-bold text-knight-gold">
-              {courses.reduce((sum, c) => sum + c.estimated_duration, 0)}
-            </div>
-            <div className="text-sm text-gray-400">Total Minutes of Content</div>
-          </Card>
-          
-          <Card>
-            <div className="text-3xl mb-2">🏆</div>
-            <div className="text-2xl font-bold text-knight-gold">
-              {user.badges?.includes('scholar') ? 'Scholar' : 'In Progress'}
-            </div>
-            <div className="text-sm text-gray-400">Your Status</div>
-          </Card>
-        </div>
-        
+        {/* PRIME Upsell */}
         {!isPrime && (
-          <Card className="mb-8" premium>
-            <div className="text-center">
-              <div className="text-5xl mb-4">⭐</div>
-              <h2 className="text-2xl font-bold text-white mb-2">Unlock {premiumCourses.length} Premium Courses</h2>
-              <p className="text-gray-300 mb-6">
-                Get advanced strategies, expert tactics, and comprehensive legal training
-              </p>
-              <Link href="/pricing" className="btn-gold inline-block">
-                Upgrade to Prime - $19.99/mo
+          <Card className="mb-8 border-2 border-knight-gold bg-gradient-to-r from-knight-gold/10 to-transparent">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-knight-gold mb-2">⭐ Unlock PRIME Courses</h2>
+                <p className="text-gray-300">
+                  Get access to {primeCount}+ exclusive courses including Metro 2 Mastery, 
+                  Omission Harm Theory, and Advanced Litigation Strategies.
+                </p>
+              </div>
+              <Link href="/pricing" className="btn-knight whitespace-nowrap">
+                Upgrade to PRIME
               </Link>
             </div>
           </Card>
         )}
         
-        {/* FREE COURSES */}
-        <div className="mb-12">
-          <h2 className="text-3xl font-bold text-knight-gold mb-6">🆓 Free Courses</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {freeCourses.map((course) => (
-              <Link key={course.slug} href={`/academy/${course.slug}`}>
-                <Card hover>
-                  <div className="mb-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-xs font-bold px-2 py-1 rounded ${
-                        course.difficulty === 'beginner' ? 'bg-green-600' :
-                        course.difficulty === 'intermediate' ? 'bg-yellow-600' :
-                        'bg-red-600'
-                      }`}>
-                        {course.difficulty.toUpperCase()}
-                      </span>
-                      <span className="text-xs text-gray-400">{course.estimated_duration} min</span>
+        {/* Categories */}
+        <div className="flex flex-wrap gap-2 mb-8">
+          {COURSE_CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              className="bg-knight-hover hover:bg-knight-gold-dark px-4 py-2 rounded-full text-white text-sm transition"
+            >
+              {cat.icon} {cat.name}
+            </button>
+          ))}
+        </div>
+        
+        {/* FREE Courses Section */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+            <span className="bg-green-600 text-white px-3 py-1 rounded text-sm">FREE</span>
+            Alpha Training ({freeCount} Courses)
+          </h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {FREE_COURSES.map((course) => (
+              <Link key={course.id} href={`/academy/${course.id}`}>
+                <Card className="h-full hover:border-knight-gold transition cursor-pointer">
+                  <div className="flex items-start gap-3 mb-3">
+                    <span className="text-3xl">{course.icon}</span>
+                    <div>
+                      <h3 className="text-white font-bold">{course.title}</h3>
+                      <p className="text-gray-400 text-sm">{course.category}</p>
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-2">{course.title}</h3>
-                    <p className="text-sm text-gray-400 mb-3">{course.description}</p>
                   </div>
-                  
-                  <div className="text-xs text-gray-500">
-                    {course.lessons.length} lessons • Category: {course.category}
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t border-knight-gold-dark">
-                    <span className="text-knight-gold text-sm font-bold">Start Course →</span>
+                  <p className="text-gray-400 text-sm mb-3 line-clamp-2">{course.description}</p>
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-knight-hover px-2 py-1 rounded text-gray-300">
+                        {course.duration}
+                      </span>
+                      <span className="bg-knight-hover px-2 py-1 rounded text-gray-300">
+                        {course.lessons.length} lessons
+                      </span>
+                    </div>
+                    <span className="text-knight-gold font-bold">+{course.points} pts</span>
                   </div>
                 </Card>
               </Link>
             ))}
           </div>
-        </div>
+        </section>
         
-        {/* PREMIUM COURSES */}
-        {isPrime && (
-          <div>
-            <h2 className="text-3xl font-bold text-knight-gold mb-6">⭐ Prime Courses</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {premiumCourses.slice(0, 12).map((course) => (
-                <Link key={course.slug} href={`/academy/${course.slug}`}>
-                  <Card hover premium>
-                    <div className="mb-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="premium-badge">⭐ PRIME</span>
-                        <span className="text-xs text-gray-400">{course.estimated_duration} min</span>
+        {/* PRIME Courses Section */}
+        <section>
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+            <span className="bg-gradient-to-r from-knight-gold to-yellow-500 text-black px-3 py-1 rounded text-sm">PRIME</span>
+            Elite Training ({primeCount} Courses)
+          </h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {PRIME_COURSES.map((course) => (
+              <div key={course.id} className="relative">
+                {!isPrime && (
+                  <div className="absolute inset-0 bg-knight-black/80 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center">
+                    <div className="text-center">
+                      <span className="text-4xl mb-2 block">🔒</span>
+                      <span className="text-knight-gold font-bold">PRIME ONLY</span>
+                    </div>
+                  </div>
+                )}
+                <Link href={isPrime ? `/academy/${course.id}` : '/pricing'}>
+                  <Card className="h-full hover:border-knight-gold transition cursor-pointer border-knight-gold/30">
+                    <div className="flex items-start gap-3 mb-3">
+                      <span className="text-3xl">{course.icon}</span>
+                      <div>
+                        <h3 className="text-white font-bold">{course.title}</h3>
+                        <p className="text-gray-400 text-sm">{course.category}</p>
                       </div>
-                      <h3 className="text-lg font-bold text-white mb-2">{course.title}</h3>
-                      <p className="text-sm text-gray-400 mb-3">{course.description}</p>
                     </div>
-                    
-                    <div className="text-xs text-gray-500">
-                      {course.lessons.length} lessons • {course.difficulty}
-                    </div>
-                    
-                    <div className="mt-4 pt-4 border-t border-knight-gold">
-                      <span className="text-knight-gold text-sm font-bold">Start Course →</span>
+                    <p className="text-gray-400 text-sm mb-3 line-clamp-2">{course.description}</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-knight-hover px-2 py-1 rounded text-gray-300">
+                          {course.duration}
+                        </span>
+                        <span className="bg-knight-hover px-2 py-1 rounded text-gray-300">
+                          {course.lessons.length} lessons
+                        </span>
+                      </div>
+                      <span className="text-knight-gold font-bold">+{course.points} pts</span>
                     </div>
                   </Card>
                 </Link>
-              ))}
-            </div>
-            
-            <div className="text-center mt-8">
-              <p className="text-gray-400">
-                Showing 12 of {premiumCourses.length} Prime courses
-              </p>
-            </div>
+              </div>
+            ))}
           </div>
-        )}
+        </section>
         
-        {/* LOCKED PREMIUM PREVIEW */}
+        {/* Bottom CTA */}
         {!isPrime && (
-          <div>
-            <h2 className="text-3xl font-bold text-knight-gold mb-6">🔒 Prime Courses (Locked)</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {premiumCourses.slice(0, 6).map((course) => (
-                <Card key={course.slug} className="relative overflow-hidden opacity-75">
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
-                    <div className="text-center">
-                      <div className="text-4xl mb-2">🔒</div>
-                      <p className="text-white font-bold">Prime Only</p>
-                    </div>
-                  </div>
-                  
-                  <div className="mb-3 blur-sm">
-                    <h3 className="text-lg font-bold text-white mb-2">{course.title}</h3>
-                    <p className="text-sm text-gray-400">{course.description}</p>
-                  </div>
-                </Card>
-              ))}
-            </div>
-            
-            <div className="text-center mt-8">
-              <Link href="/pricing" className="btn-gold inline-block">
-                Unlock All {premiumCourses.length} Prime Courses
+          <div className="mt-12 text-center">
+            <Card className="inline-block">
+              <h2 className="text-2xl font-bold text-white mb-2">Ready to Level Up?</h2>
+              <p className="text-gray-400 mb-4">
+                PRIME members get access to ALL courses plus Knight AI, social clout features, and more.
+              </p>
+              <Link href="/pricing" className="btn-knight">
+                ⭐ Upgrade to PRIME - $19.99/mo
               </Link>
-            </div>
+            </Card>
           </div>
         )}
       </div>
