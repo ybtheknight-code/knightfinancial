@@ -4,7 +4,9 @@ import Link from 'next/link';
 import Card from '@/components/Card';
 import Badge from '@/components/Badge';
 
-export default async function ProfilePage({ params }: { params: { id: string } }) {
+// This is the fix:
+export default async function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   
