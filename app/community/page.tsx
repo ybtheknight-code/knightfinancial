@@ -107,7 +107,6 @@ export default async function CommunityPage() {
 
   return (
     <CommunityFeed
-     <CommunityFeed
   currentUser={currentUser}
   initialPosts={postsWithCounts as any}
   commentsMap={commentsMap as any}
