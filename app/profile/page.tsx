@@ -67,10 +67,10 @@ export default async function ProfilePage() {
                     </div>
                   )}
                   
-                  {stats && (
+                  {(stats as any) && (
                     <div className="flex items-center gap-2 bg-knight-hover px-3 py-1 rounded-full">
                       <span>🏆</span>
-                      <span className="text-white font-bold">Rank #{stats.rank}</span>
+                      {(stats as any).rank}
                     </div>
                   )}
                 </div>
