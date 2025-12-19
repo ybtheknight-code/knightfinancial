@@ -40,8 +40,8 @@ export default async function AdminUsersPage() {
   
   // Get stats
   const totalUsers = users?.length || 0;
-  const primeUsers = users?.filter(u => u.is_prime).length || 0;
-  const freeUsers = users?.filter(u => u.role === 'free').length || 0;
+const primeUsers = users?.filter((u: any) => u.is_prime).length || 0;
+const freeUsers = users?.filter((u: any) => u.role === 'free').length || 0;
   
   return (
     <div className="min-h-screen bg-knight-black py-8">
