@@ -115,7 +115,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
                 )}
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-400">
-                <span>{post.user_profiles?.points?.toLocaleString() || 0} points</span>
+                <span>{(post.user_profiles as any)?.points?.toLocaleString() || 0} points</span>
                 <span>•</span>
                 <span>{formatRelativeTime(post.created_at)}</span>
               </div>
