@@ -173,7 +173,6 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
   if (user?.avatar_url) return user?.avatar_url;
   return user?.first_name?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || '?';
 };
-  };
 
   return (
     <div className="min-h-screen bg-knight-black flex flex-col">
