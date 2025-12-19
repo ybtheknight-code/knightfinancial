@@ -6,7 +6,9 @@ import Badge from '@/components/Badge';
 import { formatRelativeTime } from '@/utils';
 import PostComments from './PostComments';
 
-export default async function PostPage({ params }: { params: { id: string } }) {
+export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createServerSupabaseClient();
   const supabase = await createServerSupabaseClient();
   
   // Check auth
@@ -29,7 +31,7 @@ export default async function PostPage({ params }: { params: { id: string } }) {
         id, username, first_name, last_name, role, is_prime, points, badges, avatar_url
       )
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('deleted', false)
     .single();
   
