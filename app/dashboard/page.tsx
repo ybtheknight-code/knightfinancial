@@ -104,7 +104,7 @@ export default async function DashboardPage() {
           
           <Card hover>
             <div className="text-3xl mb-2">📚</div>
-            <div className="text-2xl font-bold text-knight-gold">{stats?.courses_completed || 0}</div>
+            <div className="text-2xl font-bold text-knight-gold">{(stats as any)?.courses_completed || 0}</div>
             <div className="text-sm text-gray-400">Courses Completed</div>
           </Card>
           
