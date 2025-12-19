@@ -107,11 +107,12 @@ export default async function CommunityPage() {
 
   return (
     <CommunityFeed
-      currentUser={currentUser}
-      initialPosts={postsWithCounts}
-      commentsMap={commentsMap}
-      trending={trending || []}
-      topWarriors={topWarriors || []}
+     <CommunityFeed
+  currentUser={currentUser}
+  initialPosts={postsWithCounts as any}
+  commentsMap={commentsMap as any}
+  trending={(trending || []) as any}
+  topWarriors={(topWarriors || []) as any}
       stats={{
         totalPosts: totalPosts || 0,
         totalComments: totalComments || 0,
