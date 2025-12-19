@@ -107,10 +107,10 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
                   href={`/profile/${(post.user_profiles as any)?.id || post.user_profiles?.[0]?.id}`}
                   className="text-xl font-bold text-white hover:text-knight-gold"
                 >
-                  {getDisplayName(post.user_profiles)}
-                </Link>
-                <Badge type="role" role={post.user_profiles?.role as any || 'free'} />
-                {post.user_profiles?.is_prime && (
+                  {getDisplayName(post.user_profiles as any)}
+...
+<Badge type="role" role={(post.user_profiles as any)?.role || 'free'} />
+{(post.user_profiles as any)?.is_prime && (
                   <span className="text-xs bg-knight-gold text-black px-2 py-0.5 rounded-full font-bold">⭐ PRIME</span>
                 )}
               </div>
