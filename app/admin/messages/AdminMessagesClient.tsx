@@ -19,21 +19,7 @@ interface Message {
   reply_body?: string;
   replied_at?: string;
   replied_by?: string;
-  user_profiles?: {
-    email: string;
-    first_name: string;
-    last_name: string;
-    phone: string;
-    role: string;
-    is_prime: boolean;
-  } | {
-    email: string;
-    first_name: string;
-    last_name: string;
-    phone: string;
-    role: string;
-    is_prime: boolean;
-  }[];
+  user_profiles?: any;
 }
 
 interface AdminMessagesClientProps {
