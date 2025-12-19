@@ -54,7 +54,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const { data: userLike } = await supabase
     .from('community_likes')
     .select('id')
-    app/community/post/[id]/page.tsx
+    .eq('post_id', id)
     .eq('user_id', user.id)
     .single();
   
