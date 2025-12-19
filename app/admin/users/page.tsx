@@ -129,7 +129,7 @@ const freeUsers = users?.filter((u: any) => u.role === 'free').length || 0;
         
         {/* Client component for interactivity */}
         <AdminUsersClient 
-          initialUsers={users || []} 
+          initialUsers={(users || []) as any}
           currentUserRole={currentProfile.role}
           currentUserId={user.id}
           canModify={isCEO}
