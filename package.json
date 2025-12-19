@@ -1,0 +1,32 @@
+{
+  "name": "knight-financial",
+  "version": "2.0.0",
+  "description": "The World's First FOR THE PEOPLE Credit Reporting Platform",
+  "author": "Raheem Sanders <raheem@knightfin.org>",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "15.0.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "typescript": "^5",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14"
+  }
+}

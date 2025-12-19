@@ -1,0 +1,339 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-knight-gold-dark;
+  }
+  
+  body {
+    @apply bg-knight-black text-white font-knight antialiased;
+  }
+  
+  /* Custom scrollbar - gold on black */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-knight-black;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-knight-gold-dark rounded-lg;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-knight-gold;
+  }
+}
+
+@layer components {
+  /* Knight Button Styles */
+  .btn-gold {
+    @apply bg-knight-gold text-black font-bold py-3 px-6 rounded-lg 
+           hover:bg-knight-gold-light hover:shadow-gold 
+           active:scale-95 transition-all duration-200;
+  }
+  
+  .btn-gold-outline {
+    @apply border-2 border-knight-gold text-knight-gold font-bold py-3 px-6 rounded-lg 
+           hover:bg-knight-gold hover:text-black hover:shadow-gold 
+           active:scale-95 transition-all duration-200;
+  }
+  
+  .btn-black {
+    @apply bg-knight-card text-white font-bold py-3 px-6 rounded-lg border-2 border-knight-gold 
+           hover:bg-knight-hover hover:shadow-gold 
+           active:scale-95 transition-all duration-200;
+  }
+  
+  /* Knight Card Styles */
+  .card-knight {
+    @apply bg-knight-card border-2 border-knight-gold-dark rounded-lg p-6 
+           hover:border-knight-gold hover:shadow-gold 
+           transition-all duration-300;
+  }
+  
+  .card-knight-premium {
+    @apply bg-gradient-to-br from-knight-card to-knight-hover 
+           border-2 border-knight-gold rounded-lg p-6 
+           shadow-gold animate-glow;
+  }
+  
+  /* Knight Input Styles */
+  .input-knight {
+    @apply w-full px-4 py-3 bg-knight-hover border-2 border-knight-gold-dark 
+           rounded-lg text-white placeholder-gray-500
+           focus:border-knight-gold focus:shadow-gold focus:outline-none
+           transition-all duration-200;
+  }
+  
+  .textarea-knight {
+    @apply w-full px-4 py-3 bg-knight-hover border-2 border-knight-gold-dark 
+           rounded-lg text-white placeholder-gray-500 resize-y
+           focus:border-knight-gold focus:shadow-gold focus:outline-none
+           transition-all duration-200;
+  }
+  
+  .select-knight {
+    @apply w-full px-4 py-3 bg-knight-hover border-2 border-knight-gold-dark 
+           rounded-lg text-white
+           focus:border-knight-gold focus:shadow-gold focus:outline-none
+           transition-all duration-200;
+  }
+  
+  /* Knight Badge Styles */
+  .badge-gold {
+    @apply inline-flex items-center gap-1 px-3 py-1 bg-knight-gold text-black 
+           font-bold text-xs rounded-full;
+  }
+  
+  .badge-silver {
+    @apply inline-flex items-center gap-1 px-3 py-1 bg-knight-silver text-black 
+           font-bold text-xs rounded-full;
+  }
+  
+  .badge-bronze {
+    @apply inline-flex items-center gap-1 px-3 py-1 bg-knight-bronze text-white 
+           font-bold text-xs rounded-full;
+  }
+  
+  /* Knight Alert Styles */
+  .alert-warning {
+    @apply bg-red-900/30 border-2 border-red-500 rounded-lg p-4;
+  }
+  
+  .alert-info {
+    @apply bg-blue-900/30 border-2 border-blue-500 rounded-lg p-4;
+  }
+  
+  .alert-success {
+    @apply bg-green-900/30 border-2 border-green-500 rounded-lg p-4;
+  }
+  
+  /* Knight Loading Spinner */
+  .spinner-knight {
+    @apply animate-spin rounded-full border-t-2 border-b-2 border-knight-gold;
+  }
+  
+  /* Knight Link Styles */
+  .link-knight {
+    @apply text-knight-gold hover:text-knight-gold-light underline 
+           transition-colors duration-200;
+  }
+  
+  /* Knight Section Divider */
+  .divider-knight {
+    @apply border-t-2 border-knight-gold-dark my-8;
+  }
+  
+  /* Knight Header Styles */
+  .heading-knight {
+    @apply text-knight-gold font-bold uppercase tracking-wider;
+  }
+  
+  /* Knight Glow Effect */
+  .glow-knight {
+    @apply shadow-gold animate-glow;
+  }
+  
+  /* Knight Premium Badge */
+  .premium-badge {
+    @apply inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-knight-gold to-knight-gold-dark 
+           text-black font-bold text-xs rounded;
+  }
+  
+  /* Knight AI Badge */
+  .ai-badge {
+    @apply inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-purple-600 to-pink-600 
+           text-white font-bold text-xs rounded;
+  }
+  
+  /* Knight Points Display */
+  .points-badge {
+    @apply inline-flex items-center gap-1 px-3 py-1 bg-knight-gold-dark text-white 
+           font-bold text-sm rounded-full;
+  }
+  
+  /* Knight Role Badges */
+  .role-ceo {
+    @apply inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-yellow-400 to-yellow-600 
+           text-black font-bold text-xs rounded-full;
+  }
+  
+  .role-executive {
+    @apply inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-purple-600 to-purple-800 
+           text-white font-bold text-xs rounded-full;
+  }
+  
+  .role-admin {
+    @apply inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-red-600 to-red-800 
+           text-white font-bold text-xs rounded-full;
+  }
+  
+  .role-prime {
+    @apply inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-knight-gold to-knight-gold-dark 
+           text-black font-bold text-xs rounded-full;
+  }
+  
+  .role-free {
+    @apply inline-flex items-center gap-1 px-3 py-1 bg-gray-700 
+           text-white font-bold text-xs rounded-full;
+  }
+  
+  /* Knight Container */
+  .container-knight {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  
+  /* Knight Modal Overlay */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/80 backdrop-blur-sm z-50 
+           flex items-center justify-center p-4;
+  }
+  
+  .modal-content {
+    @apply bg-knight-card border-2 border-knight-gold rounded-lg 
+           max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6
+           shadow-gold-lg;
+  }
+}
+
+@layer utilities {
+  /* Text gradient utilities */
+  .text-gradient-gold {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-knight-gold to-knight-gold-dark;
+  }
+  
+  /* Shimmer effect */
+  .shimmer {
+    @apply relative overflow-hidden;
+  }
+  
+  .shimmer::after {
+    content: '';
+    @apply absolute top-0 left-0 w-full h-full bg-gold-shimmer animate-shimmer;
+  }
+  
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Custom animations */
+@keyframes pulse-gold {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* PRIME USER SPECIAL STYLING */
+@keyframes prime-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.4), 0 0 30px rgba(212, 175, 55, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(212, 175, 55, 0.6), 0 0 50px rgba(212, 175, 55, 0.3);
+  }
+}
+
+@keyframes prime-border {
+  0%, 100% {
+    border-color: #D4AF37;
+  }
+  50% {
+    border-color: #FFD700;
+  }
+}
+
+@keyframes crown-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.prime-glow {
+  animation: prime-glow 3s ease-in-out infinite;
+}
+
+.prime-border {
+  animation: prime-border 2s ease-in-out infinite;
+  border-width: 2px;
+}
+
+.prime-avatar {
+  @apply bg-gradient-to-br from-yellow-400 via-knight-gold to-yellow-600;
+  animation: prime-glow 3s ease-in-out infinite;
+}
+
+.prime-badge {
+  @apply bg-gradient-to-r from-yellow-400 via-knight-gold to-yellow-500 text-black font-bold;
+  animation: prime-glow 2s ease-in-out infinite;
+  text-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+.prime-username {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-knight-gold to-yellow-400 font-bold;
+}
+
+.prime-card {
+  @apply border-2 border-knight-gold rounded-lg;
+  animation: prime-glow 3s ease-in-out infinite;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a1a 50%, #1a1a1a 100%);
+}
+
+.prime-post {
+  position: relative;
+  border: 2px solid #D4AF37;
+  animation: prime-border 2s ease-in-out infinite;
+}
+
+.prime-post::before {
+  content: '⭐';
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  font-size: 20px;
+  animation: crown-float 2s ease-in-out infinite;
+}
+
+/* Knight AI Special Styling */
+.knight-ai-box {
+  @apply bg-gradient-to-br from-purple-900/30 via-knight-hover to-blue-900/30 border-2 border-purple-500 rounded-lg;
+  box-shadow: 0 0 20px rgba(147, 51, 234, 0.3);
+}
+
+.knight-ai-locked {
+  @apply bg-knight-hover border-2 border-gray-600 rounded-lg opacity-60;
+  filter: grayscale(50%);
+}
+
+/* Print styles */
+@media print {
+  body {
+    @apply bg-white text-black;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
