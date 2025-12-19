@@ -97,9 +97,9 @@ export default async function DashboardPage() {
             <div className="text-3xl mb-2">⭐</div>
             <div className="text-2xl font-bold text-knight-gold">{formatPoints(user.points)}</div>
             <div className="text-sm text-gray-400">Total Points</div>
-            {stats ? (
-              <div className="text-xs text-gray-500 mt-1">Rank #{stats.rank}</div>
-            ) : null}
+           {(stats as any) ? (
+  <div className="text-xs text-gray-500 mt-1">Rank #{(stats as any).rank}</div>
+) : null}
           </Card>
           
           <Card hover>
@@ -145,7 +145,7 @@ export default async function DashboardPage() {
                 <div className="text-3xl mb-2">🚨</div>
                 <div className="text-2xl font-bold text-knight-gold">{adminStats.pendingMod}</div>
                 <div className="text-sm text-gray-400">Pending Moderation</div>
-               {(adminStats?.pendingMod ?? 0) > 0 && (
+               {(admin(stats as any)?.pendingMod ?? 0) > 0 && (
                   <Link href="/admin/moderation" className="text-xs link-knight mt-2 block">
                     Review now →
                   </Link>
@@ -320,12 +320,12 @@ export default async function DashboardPage() {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-400">Courses Completed</span>
-                    <span className="text-white">{stats?.courses_completed || 0}/100</span>
+                    <span className="text-white">{(stats as any)?.courses_completed || 0}/100</span>
                   </div>
                   <div className="w-full bg-knight-hover rounded-full h-2">
                     <div 
                       className="bg-knight-gold h-2 rounded-full transition-all"
-                      style={{ width: `${((stats?.courses_completed || 0) / 100) * 100}%` }}
+                      style={{ width: `${(((stats as any)?.courses_completed || 0) / 100) * 100}%` }}
                     />
                   </div>
                 </div>
