@@ -172,7 +172,7 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
 
   const getAvatar = () => {
     const getAvatar = () => {
-  if (user?.avatar_url) return user.avatar_url;
+  if (user?.avatar_url) return user?.avatar_url;
   return user?.first_name?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || '?';
 };
   };
@@ -192,7 +192,7 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
             {/* Desktop: User Info + Points */}
             <div className="hidden md:flex items-center gap-4">
               {/* Prime Badge */}
-              {user.is_prime && (
+              {user?.is_prime && (
                 <div className="bg-gradient-to-r from-knight-gold to-yellow-500 text-black px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1 animate-pulse">
                   ⭐ PRIME
                 </div>
@@ -200,7 +200,7 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
               
               {/* Points */}
               <Link href="/points-guide" className="flex items-center gap-2 bg-knight-hover px-4 py-2 rounded-full hover:bg-knight-gold-dark transition">
-                <span className="text-knight-gold font-bold">🏆 {user.points.toLocaleString()}</span>
+                <span className="text-knight-gold font-bold">🏆 {user?.points.toLocaleString()}</span>
                 <span className="text-gray-400 text-sm">pts</span>
               </Link>
 
@@ -208,12 +208,12 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
               <div className="relative group">
                 <button className="flex items-center gap-2 bg-knight-hover px-3 py-2 rounded-full hover:bg-knight-gold-dark transition">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                    user.is_prime ? 'bg-gradient-to-r from-knight-gold to-yellow-500 text-black' : 'bg-knight-gold-dark text-white'
+                   user?.is_prime ? 'bg-gradient-to-r from-knight-gold to-yellow-500 text-black' : 'bg-knight-gold-dark text-white'
                   }`}>
                     {getAvatar()}
                   </div>
                   <span className="text-white font-medium hidden lg:block">
-                    {user.first_name || user.username}
+                    {user?.first_name || user?.username}
                   </span>
                   <span className="text-gray-400">▼</span>
                 </button>
@@ -226,12 +226,12 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
                   <Link href="/leaderboard" className="block px-4 py-3 text-white hover:bg-knight-gold-dark transition">
                     🏆 Leaderboard
                   </Link>
-                  {!user.is_prime && (
+                  {!user?.is_prime && (
                     <Link href="/pricing" className="block px-4 py-3 text-knight-gold hover:bg-knight-gold-dark transition font-bold">
                       ⭐ Upgrade to Prime
                     </Link>
                   )}
-                  {['admin', 'executive', 'ceo'].includes(user.role) && (
+                  {['admin', 'executive', 'ceo'].includes(user?.role) && (
                     <Link href="/admin" className="block px-4 py-3 text-red-400 hover:bg-knight-gold-dark transition">
                       🔴 Admin Panel
                     </Link>
@@ -314,14 +314,14 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
             <div className="bg-knight-hover rounded-lg p-4 mb-6">
               <div className="flex items-center gap-4">
                 <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold ${
-                  user.is_prime ? 'bg-gradient-to-r from-knight-gold to-yellow-500 text-black' : 'bg-knight-gold-dark text-white'
+                  user?.is_prime ? 'bg-gradient-to-r from-knight-gold to-yellow-500 text-black' : 'bg-knight-gold-dark text-white'
                 }`}>
                   {getAvatar()}
                 </div>
                 <div>
-                  <div className="text-white font-bold text-lg">{user.first_name} {user.last_name}</div>
-                  <div className="text-knight-gold">🏆 {user.points.toLocaleString()} points</div>
-                  {user.is_prime && <div className="text-yellow-400 text-sm font-bold">⭐ PRIME MEMBER</div>}
+                  <div className="text-white font-bold text-lg">{user?.first_name} {user?.last_name}</div>
+                  <div className="text-knight-gold">🏆 {user?.points.toLocaleString()} points</div>
+                  {user?.is_prime && <div className="text-yellow-400 text-sm font-bold">⭐ PRIME MEMBER</div>}
                 </div>
               </div>
             </div>
@@ -334,12 +334,12 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
               <Link href="/leaderboard" onClick={() => setMobileMenuOpen(false)} className="block bg-knight-hover p-4 rounded-lg text-white">
                 🏆 Leaderboard
               </Link>
-              {!user.is_prime && (
+              {!user?.is_prime && (
                 <Link href="/pricing" onClick={() => setMobileMenuOpen(false)} className="block bg-gradient-to-r from-knight-gold to-yellow-500 p-4 rounded-lg text-black font-bold">
                   ⭐ Upgrade to PRIME
                 </Link>
               )}
-              {['admin', 'executive', 'ceo'].includes(user.role) && (
+              {['admin', 'executive', 'ceo'].includes(user?.role) && (
                 <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="block bg-red-900 p-4 rounded-lg text-white">
                   🔴 Admin Panel
                 </Link>
