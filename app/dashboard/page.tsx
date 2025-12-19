@@ -116,7 +116,7 @@ export default async function DashboardPage() {
           
           <Card hover>
             <div className="text-3xl mb-2">💬</div>
-            <div className="text-2xl font-bold text-knight-gold">{stats?.posts_created || 0}</div>
+           {(stats as any)?.posts_created || 0}
             <div className="text-sm text-gray-400">Community Posts</div>
             {unreadCount && unreadCount > 0 && (
               <div className="text-xs text-yellow-400 mt-1">{unreadCount} new messages</div>
