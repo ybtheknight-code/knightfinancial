@@ -9,7 +9,7 @@ import PostComments from './PostComments';
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServerSupabaseClient();
-  const supabase = await createServerSupabaseClient();
+ 
   
   // Check auth
   const { data: { user } } = await supabase.auth.getUser();
