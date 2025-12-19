@@ -1,13 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import Card from '@/components/Card';
-import Button from '@/components/Button';
-import Badge from '@/components/Badge';
-import { Textarea } from '@/components/Input';
-import { formatRelativeTime } from '@/utils';
+import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase';
+import Card from '@/components/Card';
+import Badge from '@/components/Badge';
+import { formatRelativeTime } from '@/utils';
 
 interface Comment {
   id: string;
@@ -28,39 +25,47 @@ interface PostCommentsProps {
   userHasLiked: boolean;
 }
 
-export default function PostComments({
-  postId,
-  postLikes,
+export default function PostComments({ 
+  postId, 
+  postLikes: initialPostLikes, 
   postAuthorId,
   currentUser,
   initialComments,
-  userHasLiked,
+  userHasLiked: initialUserHasLiked 
 }: PostCommentsProps) {
-  const [likes, setLikes] = useState(postLikes);
-  const [hasLiked, setHasLiked] = useState(userHasLiked);
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [sortBy, setSortBy] = useState<'best' | 'new' | 'old'>('best');
-
+  const [postLikes, setPostLikes] = useState(initialPostLikes);
+  const [userHasLiked, setUserHasLiked] = useState(initialUserHasLiked);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const supabase = createClient();
+  
   const getDisplayName = (user: any) => {
     if (user?.username) return `u/${user.username}`;
     if (user?.first_name) return user.first_name;
     return 'Anonymous';
   };
-
+  
   const getAvatar = (user: any) => {
     const initial = user?.first_name?.[0] || user?.username?.[0] || '?';
     return initial.toUpperCase();
   };
-
-  const handleUpvote = async () => {
-    const supabase = createClient();
-    
-    if (hasLiked) {
-      // Remove like
+  
+  // FIXED: Use useCallback to prevent re-renders
+  const handleCommentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewComment(e.target.value);
+  }, []);
+  
+  const handleReplyChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setReplyText(e.target.value);
+  }, []);
+  
+  const handleLikePost = async () => {
+    if (userHasLiked) {
+      // Unlike
       await supabase
         .from('community_likes')
         .delete()
@@ -69,77 +74,50 @@ export default function PostComments({
       
       await supabase
         .from('community_posts')
-        .update({ likes: likes - 1 })
+        .update({ likes: postLikes - 1 })
         .eq('id', postId);
       
-      setLikes(likes - 1);
-      setHasLiked(false);
+      setPostLikes(postLikes - 1);
+      setUserHasLiked(false);
     } else {
-      // Add like
+      // Like
       await supabase
         .from('community_likes')
-        .insert({ post_id: postId, user_id: currentUser.id });
+        .insert({
+          post_id: postId,
+          user_id: currentUser.id,
+        });
       
       await supabase
         .from('community_posts')
-        .update({ likes: likes + 1 })
+        .update({ likes: postLikes + 1 })
         .eq('id', postId);
       
-      setLikes(likes + 1);
-      setHasLiked(true);
-    }
-  };
-
-  const handleAddComment = async () => {
-    if (!newComment.trim()) return;
-    
-    setPosting(true);
-    const supabase = createClient();
-    
-    const { data, error } = await supabase
-      .from('community_comments')
-      .insert({
-        post_id: postId,
-        user_id: currentUser.id,
-        body: newComment,
-        likes: 0,
-        parent_id: null,
-      })
-      .select(`
-        id, body, likes, created_at, user_id, parent_id,
-        user_profiles!community_comments_user_id_fkey (
-          id, username, first_name, last_name, role, is_prime, points, avatar_url
-        )
-      `)
-      .single();
-    
-    if (!error && data) {
-      setComments([...comments, data]);
-      setNewComment('');
+      // Award points to post author
+      if (postAuthorId !== currentUser.id) {
+        await supabase.rpc('increment_points', { 
+          user_id: postAuthorId, 
+          amount: 2 
+        });
+      }
       
-      // Award points
-      await supabase.rpc('award_points', {
-        p_user_id: currentUser.id,
-        p_points: 3,
-        p_reason: 'Commented on post',
-      });
+      setPostLikes(postLikes + 1);
+      setUserHasLiked(true);
     }
-    setPosting(false);
   };
-
-  const handleReply = async (parentId: string) => {
-    if (!replyText.trim()) return;
+  
+  const handleSubmitComment = async (parentId: string | null = null) => {
+    const text = parentId ? replyText : newComment;
+    if (!text.trim() || isSubmitting) return;
     
-    setPosting(true);
-    const supabase = createClient();
+    setIsSubmitting(true);
     
     const { data, error } = await supabase
       .from('community_comments')
       .insert({
         post_id: postId,
         user_id: currentUser.id,
-        body: replyText,
-        likes: 0,
+        body: text.trim(),
         parent_id: parentId,
       })
       .select(`
@@ -151,237 +129,148 @@ export default function PostComments({
       .single();
     
     if (!error && data) {
-      setComments([...comments, data]);
-      setReplyText('');
-      setReplyingTo(null);
+      setComments([...comments, data as any]);
+      if (parentId) {
+        setReplyText('');
+        setReplyingTo(null);
+      } else {
+        setNewComment('');
+      }
       
       // Award points
-      await supabase.rpc('award_points', {
-        p_user_id: currentUser.id,
-        p_points: 3,
-        p_reason: 'Replied to comment',
+      await supabase.rpc('increment_points', { 
+        user_id: currentUser.id, 
+        amount: 5 
       });
     }
-    setPosting(false);
-  };
-
-  const handleLikeComment = async (commentId: string) => {
-    const supabase = createClient();
-    const comment = comments.find(c => c.id === commentId);
-    if (!comment) return;
     
-    // Simple toggle - in real app would track individual likes
-    await supabase
-      .from('community_comments')
-      .update({ likes: comment.likes + 1 })
-      .eq('id', commentId);
-    
-    setComments(comments.map(c => 
-      c.id === commentId ? { ...c, likes: c.likes + 1 } : c
-    ));
+    setIsSubmitting(false);
   };
-
-  // Get top-level comments
-  const topLevelComments = comments.filter(c => !c.parent_id);
   
-  // Sort comments
-  const sortedComments = [...topLevelComments].sort((a, b) => {
-    switch (sortBy) {
-      case 'best': return b.likes - a.likes;
-      case 'new': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      case 'old': return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      default: return 0;
-    }
-  });
-
-  // Get replies for a comment
-  const getReplies = (parentId: string) => {
-    return comments
-      .filter(c => c.parent_id === parentId)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  };
-
-  const CommentCard = ({ comment, isReply = false }: { comment: Comment; isReply?: boolean }) => {
+  // Organize comments into threads
+  const topLevelComments = comments.filter(c => !c.parent_id);
+  const getReplies = (parentId: string) => comments.filter(c => c.parent_id === parentId);
+  
+  const CommentComponent = ({ comment, depth = 0 }: { comment: Comment; depth?: number }) => {
     const replies = getReplies(comment.id);
-    const isAuthor = comment.user_id === postAuthorId;
+    const user = Array.isArray(comment.user_profiles) ? comment.user_profiles[0] : comment.user_profiles;
     
     return (
-      <div className={`${isReply ? 'ml-8 border-l-2 border-knight-gold-dark pl-4' : ''}`}>
-        <div className="bg-knight-hover rounded-lg p-4 mb-3">
-          {/* Comment Header */}
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
+      <div className={`${depth > 0 ? 'ml-8 border-l-2 border-knight-gold-dark pl-4' : ''}`}>
+        <div className="bg-knight-hover rounded-lg p-4 mb-2">
+          {/* Author */}
+          <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-full bg-knight-gold-dark flex items-center justify-center text-white font-bold text-sm">
-              {getAvatar(comment.user_profiles)}
+              {getAvatar(user)}
             </div>
-            <Link 
-              href={`/profile/${comment.user_profiles?.id}`}
-              className="font-bold text-white hover:text-knight-gold text-sm"
-            >
-              {getDisplayName(comment.user_profiles)}
-            </Link>
-            <Badge type="role" role={comment.user_profiles?.role as any || 'free'} />
-            {comment.user_profiles?.is_prime && (
-              <span className="text-xs bg-knight-gold text-black px-1 py-0.5 rounded font-bold">⭐</span>
+            <span className="text-white font-bold">{getDisplayName(user)}</span>
+            <Badge type="role" role={user?.role || 'free'} />
+            {user?.is_prime && (
+              <span className="text-xs bg-knight-gold text-black px-2 py-0.5 rounded-full font-bold">⭐</span>
             )}
-            {isAuthor && (
-              <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">OP</span>
-            )}
-            <span className="text-xs text-gray-500">{formatRelativeTime(comment.created_at)}</span>
+            <span className="text-gray-500 text-sm">{formatRelativeTime(comment.created_at)}</span>
           </div>
           
-          {/* Comment Body */}
-          <p className="text-gray-200 whitespace-pre-wrap break-words mb-3">
-            {comment.body}
-          </p>
+          {/* Body */}
+          <p className="text-gray-200 mb-3">{comment.body}</p>
           
-          {/* Comment Actions */}
+          {/* Actions */}
           <div className="flex items-center gap-4 text-sm">
-            <button
-              onClick={() => handleLikeComment(comment.id)}
-              className="flex items-center gap-1 text-gray-400 hover:text-knight-gold transition"
-            >
-              ⬆️ <span>{comment.likes}</span>
+            <button className="text-gray-400 hover:text-knight-gold flex items-center gap-1">
+              ❤️ {comment.likes}
             </button>
-            <button
+            <button 
               onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-              className="text-gray-400 hover:text-knight-gold transition"
+              className="text-gray-400 hover:text-knight-gold"
             >
               💬 Reply
             </button>
           </div>
           
-          {/* Reply Form */}
+          {/* Reply input - FIXED */}
           {replyingTo === comment.id && (
-            <div className="mt-4 space-y-2">
-              <Textarea
+            <div className="mt-3">
+              <textarea
                 value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                rows={3}
-                placeholder={`Reply to ${getDisplayName(comment.user_profiles)}...`}
+                onChange={handleReplyChange}
+                placeholder="Write a reply..."
+                className="w-full bg-knight-black border border-knight-gold-dark rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-knight-gold resize-none"
+                rows={2}
               />
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => handleReply(comment.id)}
-                  disabled={!replyText.trim()}
-                  loading={posting}
-                  size="sm"
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => handleSubmitComment(comment.id)}
+                  disabled={!replyText.trim() || isSubmitting}
+                  className="btn-knight text-sm px-4 py-1 disabled:opacity-50"
                 >
-                  Reply
-                </Button>
-                <Button
-                  onClick={() => { setReplyingTo(null); setReplyText(''); }}
-                  variant="gold-outline"
-                  size="sm"
+                  {isSubmitting ? 'Posting...' : 'Reply'}
+                </button>
+                <button
+                  onClick={() => {
+                    setReplyingTo(null);
+                    setReplyText('');
+                  }}
+                  className="text-gray-400 hover:text-white text-sm"
                 >
                   Cancel
-                </Button>
+                </button>
               </div>
             </div>
           )}
         </div>
         
-        {/* Nested Replies */}
-        {replies.length > 0 && (
-          <div className="space-y-3">
-            {replies.map(reply => (
-              <CommentCard key={reply.id} comment={reply} isReply />
-            ))}
-          </div>
-        )}
+        {/* Nested replies */}
+        {replies.map(reply => (
+          <CommentComponent key={reply.id} comment={reply} depth={depth + 1} />
+        ))}
       </div>
     );
   };
-
+  
   return (
-    <>
-      {/* Post Action Bar */}
-      <div className="flex items-center gap-6 py-4 border-t border-b border-knight-gold-dark mb-6">
-        <button
-          onClick={handleUpvote}
-          className={`flex items-center gap-2 text-lg transition ${
-            hasLiked ? 'text-knight-gold' : 'text-gray-400 hover:text-knight-gold'
-          }`}
+    <div>
+      {/* Post Actions */}
+      <div className="flex items-center gap-6 py-4 border-t border-knight-gold-dark">
+        <button 
+          onClick={handleLikePost}
+          className={`flex items-center gap-2 text-lg ${userHasLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'} transition`}
         >
-          <span className="text-2xl">⬆️</span>
-          <span className="font-bold">{likes}</span>
-          <span>{hasLiked ? 'Upvoted' : 'Upvote'}</span>
+          {userHasLiked ? '❤️' : '🤍'} {postLikes}
         </button>
-        
-        <div className="flex items-center gap-2 text-gray-400">
-          <span className="text-xl">💬</span>
-          <span className="font-bold">{comments.length}</span>
-          <span>Comments</span>
-        </div>
-        
-        <button className="flex items-center gap-2 text-gray-400 hover:text-knight-gold transition">
-          <span className="text-xl">🔗</span>
-          <span>Share</span>
-        </button>
-        
-        <button className="flex items-center gap-2 text-gray-400 hover:text-knight-gold transition">
-          <span className="text-xl">🔖</span>
-          <span>Save</span>
-        </button>
+        <span className="flex items-center gap-2 text-lg text-gray-400">
+          💬 {comments.length}
+        </span>
       </div>
       
-      {/* Comment Box */}
-      <div className="mb-8">
-        <h3 className="text-lg font-bold text-knight-gold mb-4">Leave a Comment</h3>
-        <Textarea
+      {/* New Comment - FIXED */}
+      <div className="mb-6">
+        <textarea
           value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          rows={4}
-          placeholder="Share your thoughts, advice, or support..."
+          onChange={handleCommentChange}
+          placeholder="Share your thoughts..."
+          className="w-full bg-knight-hover border border-knight-gold-dark rounded-lg p-4 text-white placeholder-gray-500 focus:outline-none focus:border-knight-gold resize-none"
+          rows={3}
         />
-        <div className="flex justify-between items-center mt-3">
-          <span className="text-sm text-gray-500">Be respectful. Follow the Warrior Code.</span>
-          <Button
-            onClick={handleAddComment}
-            disabled={!newComment.trim()}
-            loading={posting}
-          >
-            Post Comment (+3 pts)
-          </Button>
-        </div>
+        <button
+          onClick={() => handleSubmitComment(null)}
+          disabled={!newComment.trim() || isSubmitting}
+          className="btn-knight mt-2 disabled:opacity-50"
+        >
+          {isSubmitting ? 'Posting...' : '💬 Post Comment (+5 pts)'}
+        </button>
       </div>
       
-      {/* Comments Section */}
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-bold text-knight-gold">
-            Comments ({comments.length})
-          </h3>
-          <div className="flex gap-2">
-            {(['best', 'new', 'old'] as const).map(sort => (
-              <button
-                key={sort}
-                onClick={() => setSortBy(sort)}
-                className={`px-3 py-1 rounded text-sm font-bold transition ${
-                  sortBy === sort
-                    ? 'bg-knight-gold text-black'
-                    : 'bg-knight-hover text-gray-400 hover:text-white'
-                }`}
-              >
-                {sort === 'best' ? '🏆 Best' : sort === 'new' ? '✨ New' : '📅 Old'}
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {sortedComments.length > 0 ? (
-          <div className="space-y-4">
-            {sortedComments.map(comment => (
-              <CommentCard key={comment.id} comment={comment} />
-            ))}
-          </div>
+      {/* Comments List */}
+      <div className="space-y-4">
+        <h3 className="text-xl font-bold text-white">Comments ({comments.length})</h3>
+        {topLevelComments.length === 0 ? (
+          <p className="text-gray-400 text-center py-8">No comments yet. Be the first!</p>
         ) : (
-          <Card className="text-center py-12">
-            <div className="text-5xl mb-4">💬</div>
-            <h4 className="text-xl font-bold text-knight-gold mb-2">No Comments Yet</h4>
-            <p className="text-gray-400">Be the first to share your thoughts!</p>
-          </Card>
+          topLevelComments.map(comment => (
+            <CommentComponent key={comment.id} comment={comment} />
+          ))
         )}
       </div>
-    </>
+    </div>
   );
 }
