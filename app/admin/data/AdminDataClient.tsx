@@ -97,7 +97,7 @@ export default function AdminDataClient({
   const handleDownload = async (doc: Document) => {
     const supabase = createClient();
     const { data } = await supabase.storage
-      .from('user-documents')
+      .from('knight-vault')
       .createSignedUrl(doc.storage_path, 3600);
     
     if (data?.signedUrl) {
