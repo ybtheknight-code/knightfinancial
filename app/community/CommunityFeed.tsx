@@ -94,6 +94,11 @@ export default function CommunityFeed({
   const [posting, setPosting] = useState(false);
   const [quickComment, setQuickComment] = useState<Record<string, string>>({});
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+  const [editingPost, setEditingPost] = useState<string | null>(null);
+  const [editPostBody, setEditPostBody] = useState('');
+
+  // Check if current user is admin
+  const isAdmin = ['admin', 'executive', 'ceo'].includes(currentUser?.role || '');
 
   // Calculate "hot" score (Reddit-style)
   const getHotScore = (post: Post) => {
@@ -117,7 +122,7 @@ export default function CommunityFeed({
     });
 
   const handleCreatePost = async () => {
-    if (!newPostBody.trim()) return;
+    if (!newPostBody.trim() || posting) return;
     
     setPosting(true);
     const supabase = createClient();
@@ -157,6 +162,63 @@ export default function CommunityFeed({
       });
     }
     setPosting(false);
+  };
+
+  const handleEditPost = async (postId: string) => {
+    if (!editPostBody.trim()) return;
+    
+    const supabase = createClient();
+    const title = editPostBody.split('\n')[0].slice(0, 100) || editPostBody.slice(0, 100);
+    
+    const { error } = await supabase
+      .from('community_posts')
+      .update({ body: editPostBody, title, updated_at: new Date().toISOString() })
+      .eq('id', postId)
+      .eq('user_id', currentUser.id);
+    
+    if (!error) {
+      setPosts(posts.map(p => p.id === postId ? { ...p, body: editPostBody, title } : p));
+      setEditingPost(null);
+      setEditPostBody('');
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+    
+    const supabase = createClient();
+    
+    // Soft delete the post
+    const { error } = await supabase
+      .from('community_posts')
+      .update({ deleted: true })
+      .eq('id', postId);
+    
+    if (!error) {
+      setPosts(posts.filter(p => p.id !== postId));
+    }
+  };
+
+  const handleAdminDeletePost = async (postId: string) => {
+    if (!confirm('ADMIN: Are you sure you want to delete this post? This action will be logged.')) return;
+    
+    const supabase = createClient();
+    
+    const { error } = await supabase
+      .from('community_posts')
+      .update({ deleted: true, deleted_by: currentUser.id })
+      .eq('id', postId);
+    
+    if (!error) {
+      // Log admin action
+      await supabase.from('admin_actions').insert({
+        admin_id: currentUser.id,
+        action_type: 'delete_post',
+        target_id: postId,
+        details: { reason: 'Admin deletion from feed' },
+      });
+      setPosts(posts.filter(p => p.id !== postId));
+    }
   };
 
   const handleUpvote = async (postId: string) => {
@@ -445,7 +507,7 @@ export default function CommunityFeed({
                       )}
                       
                       {/* Action Bar */}
-                      <div className="flex items-center gap-4 text-sm border-t border-knight-gold-dark pt-3 mt-3">
+                      <div className="flex items-center gap-4 text-sm border-t border-knight-gold-dark pt-3 mt-3 flex-wrap">
                         <Link
                           href={`/community/post/${post.id}`}
                           className="flex items-center gap-1 text-gray-400 hover:text-knight-gold transition"
@@ -458,6 +520,38 @@ export default function CommunityFeed({
                         <button className="flex items-center gap-1 text-gray-400 hover:text-knight-gold transition">
                           🔖 Save
                         </button>
+                        
+                        {/* Edit/Delete for post owner */}
+                        {post.user_id === currentUser?.id && (
+                          <>
+                            <button 
+                              onClick={() => {
+                                setEditingPost(post.id);
+                                setEditPostBody(post.body);
+                              }}
+                              className="flex items-center gap-1 text-gray-400 hover:text-blue-400 transition"
+                            >
+                              ✏️ Edit
+                            </button>
+                            <button 
+                              onClick={() => handleDeletePost(post.id)}
+                              className="flex items-center gap-1 text-gray-400 hover:text-red-400 transition"
+                            >
+                              🗑️ Delete
+                            </button>
+                          </>
+                        )}
+                        
+                        {/* Admin delete */}
+                        {isAdmin && post.user_id !== currentUser?.id && (
+                          <button 
+                            onClick={() => handleAdminDeletePost(post.id)}
+                            className="flex items-center gap-1 text-red-400 hover:text-red-300 transition"
+                          >
+                            🔴 Admin Delete
+                          </button>
+                        )}
+                        
                         <button 
                           onClick={() => handleReportPost(post.id)}
                           className="flex items-center gap-1 text-gray-400 hover:text-red-400 transition ml-auto"
@@ -465,6 +559,36 @@ export default function CommunityFeed({
                           🚨 Report
                         </button>
                       </div>
+                      
+                      {/* Edit Form */}
+                      {editingPost === post.id && (
+                        <div className="mt-4 p-4 bg-knight-hover rounded-lg border border-knight-gold-dark">
+                          <textarea
+                            value={editPostBody}
+                            onChange={(e) => setEditPostBody(e.target.value)}
+                            className="w-full bg-knight-black border border-knight-gold-dark rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-knight-gold resize-none"
+                            rows={4}
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => handleEditPost(post.id)}
+                              disabled={!editPostBody.trim()}
+                              className="btn-knight text-sm px-4 py-1 disabled:opacity-50"
+                            >
+                              Save Changes
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingPost(null);
+                                setEditPostBody('');
+                              }}
+                              className="text-gray-400 hover:text-white text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )
                       
                       {/* Comment Preview */}
                       {commentsMap[post.id] && commentsMap[post.id].length > 0 && (
