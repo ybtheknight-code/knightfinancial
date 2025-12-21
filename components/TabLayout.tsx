@@ -45,7 +45,23 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    const supabase = createClient();
+    
+    // Initial load
     loadUser();
+    
+    // Listen for auth state changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        await loadUser();
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadUser = async () => {
@@ -62,6 +78,8 @@ export default function TabLayout({ children }: { children: React.ReactNode }) {
       if (profile) {
         setUser(profile);
       }
+    } else {
+      setUser(null);
     }
     setLoading(false);
   };
