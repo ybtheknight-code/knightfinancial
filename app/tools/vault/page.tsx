@@ -60,7 +60,21 @@ export default function VaultPage() {
   const [bureauFilter, setBureauFilter] = useState('');
 
   useEffect(() => {
+    const supabase = createClient();
+    
+    // Initial load
     loadData();
+    
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        await loadData();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadData = async () => {
