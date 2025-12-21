@@ -128,7 +128,11 @@ export default function PostComments({
         }
         
         // Award points
-        await supabase.rpc('increment_points', { user_id: currentUser.id, amount: 5 }).catch(() => {});
+        try {
+          await supabase.rpc('increment_points', { user_id: currentUser.id, amount: 5 });
+        } catch (e) {
+          // Ignore points error
+        }
       }
     } catch (err) {
       console.error('Comment error:', err);
