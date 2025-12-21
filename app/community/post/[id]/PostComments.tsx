@@ -82,31 +82,57 @@ export default function PostComments({
     setIsSubmitting(true);
     const supabase = createClient();
     
-    const { data, error } = await supabase
-      .from('community_comments')
-      .insert({
-        post_id: postId,
-        user_id: currentUser.id,
-        body: text.trim(),
-        parent_id: parentId,
-      })
-      .select(`
-        id, body, likes, created_at, user_id, parent_id,
-        user_profiles!community_comments_user_id_fkey (
-          id, username, first_name, last_name, role, is_prime, points, avatar_url
-        )
-      `)
-      .single();
-    
-    if (!error && data) {
-      setComments([...comments, data as any]);
-      if (parentId) {
-        setReplyTexts(prev => ({ ...prev, [parentId]: '' }));
-        setReplyingTo(null);
-      } else {
-        setNewComment('');
+    try {
+      const { data, error } = await supabase
+        .from('community_comments')
+        .insert({
+          post_id: postId,
+          user_id: currentUser.id,
+          body: text.trim(),
+          parent_id: parentId,
+          likes: 0,
+        })
+        .select('*')
+        .single();
+      
+      if (error) {
+        console.error('Comment error:', error);
+        alert('Failed to post comment. Please try again.');
+        setIsSubmitting(false);
+        return;
       }
-      await supabase.rpc('increment_points', { user_id: currentUser.id, amount: 5 });
+      
+      if (data) {
+        // Add the new comment with current user's profile
+        const newCommentWithProfile = {
+          ...data,
+          user_profiles: {
+            id: currentUser.id,
+            username: currentUser.username,
+            first_name: currentUser.first_name,
+            last_name: currentUser.last_name,
+            role: currentUser.role,
+            is_prime: currentUser.is_prime,
+            points: currentUser.points,
+            avatar_url: currentUser.avatar_url,
+          }
+        };
+        
+        setComments([...comments, newCommentWithProfile as any]);
+        
+        if (parentId) {
+          setReplyTexts(prev => ({ ...prev, [parentId]: '' }));
+          setReplyingTo(null);
+        } else {
+          setNewComment('');
+        }
+        
+        // Award points
+        await supabase.rpc('increment_points', { user_id: currentUser.id, amount: 5 }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('Comment error:', err);
+      alert('Failed to post comment. Please try again.');
     }
     
     setIsSubmitting(false);
