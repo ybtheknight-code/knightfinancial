@@ -124,43 +124,67 @@ export default function CommunityFeed({
   const handleCreatePost = async () => {
     if (!newPostBody.trim() || posting) return;
     
+    // Immediately set posting to prevent double clicks
     setPosting(true);
+    
+    // Save values before clearing (to prevent race conditions)
+    const bodyToPost = newPostBody;
+    const tagsToPost = [...newPostTags];
+    
+    // Clear form immediately
+    setNewPostBody('');
+    setNewPostTags([]);
+    setShowFullPost(false);
+    
     const supabase = createClient();
     
     // Auto-generate title from first line or first 50 chars
-    const title = newPostBody.split('\n')[0].slice(0, 100) || newPostBody.slice(0, 100);
+    const title = bodyToPost.split('\n')[0].slice(0, 100) || bodyToPost.slice(0, 100);
     
-    const { data, error } = await supabase
-      .from('community_posts')
-      .insert({
-        user_id: currentUser.id,
-        title,
-        body: newPostBody,
-        tags: newPostTags,
-        likes: 0,
-        pinned: false,
-      })
-      .select()
-      .single();
-    
-    if (!error && data) {
-      const newPost: Post = {
-        ...data,
-        comment_count: 0,
-        user_profiles: currentUser,
-      };
-      setPosts([newPost, ...posts]);
-      setNewPostBody('');
-      setNewPostTags([]);
-      setShowFullPost(false);
+    try {
+      const { data, error } = await supabase
+        .from('community_posts')
+        .insert({
+          user_id: currentUser.id,
+          title,
+          body: bodyToPost,
+          tags: tagsToPost,
+          likes: 0,
+          pinned: false,
+        })
+        .select()
+        .single();
       
-      // Award points
-      await supabase.rpc('award_points', {
-        p_user_id: currentUser.id,
-        p_points: 10,
-        p_reason: 'Posted in community',
-      });
+      if (error) {
+        console.error('Post error:', error);
+        // Restore form on error
+        setNewPostBody(bodyToPost);
+        setNewPostTags(tagsToPost);
+        setShowFullPost(true);
+        alert('Failed to post. Please try again.');
+      } else if (data) {
+        const newPost: Post = {
+          ...data,
+          comment_count: 0,
+          user_profiles: currentUser,
+        };
+        setPosts(prev => [newPost, ...prev]);
+        
+        // Award points
+        await supabase.rpc('award_points', {
+          p_user_id: currentUser.id,
+          p_points: 10,
+          p_reason: 'Posted in community',
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('Post error:', err);
+      setNewPostBody(bodyToPost);
+      setNewPostTags(tagsToPost);
+      setShowFullPost(true);
+      alert('Failed to post. Please try again.');
     }
+    
     setPosting(false);
   };
 
@@ -242,27 +266,39 @@ export default function CommunityFeed({
     }
   };
 
+  const [quickCommentPosting, setQuickCommentPosting] = useState<Record<string, boolean>>({});
+
   const handleQuickComment = async (postId: string) => {
     const comment = quickComment[postId];
-    if (!comment?.trim()) return;
+    if (!comment?.trim() || quickCommentPosting[postId]) return;
+    
+    // Prevent double posting
+    setQuickCommentPosting(prev => ({ ...prev, [postId]: true }));
+    setQuickComment({ ...quickComment, [postId]: '' });
     
     const supabase = createClient();
     
-    await supabase.from('community_comments').insert({
-      post_id: postId,
-      user_id: currentUser.id,
-      body: comment,
-      likes: 0,
-    });
+    try {
+      await supabase.from('community_comments').insert({
+        post_id: postId,
+        user_id: currentUser.id,
+        body: comment,
+        likes: 0,
+      });
+      
+      setPosts(posts.map(p => p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p));
+      
+      await supabase.rpc('award_points', {
+        p_user_id: currentUser.id,
+        p_points: 3,
+        p_reason: 'Commented on post',
+      }).catch(() => {});
+    } catch (err) {
+      // Restore comment on error
+      setQuickComment(prev => ({ ...prev, [postId]: comment }));
+    }
     
-    setPosts(posts.map(p => p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p));
-    setQuickComment({ ...quickComment, [postId]: '' });
-    
-    await supabase.rpc('award_points', {
-      p_user_id: currentUser.id,
-      p_points: 3,
-      p_reason: 'Commented on post',
-    });
+    setQuickCommentPosting(prev => ({ ...prev, [postId]: false }));
   };
 
   const handleReportPost = async (postId: string) => {
@@ -319,6 +355,11 @@ export default function CommunityFeed({
                 <div className="text-2xl font-bold">{stats.totalComments}</div>
                 <div className="text-sm">Comments</div>
               </div>
+              {isAdmin && (
+                <Link href="/admin/moderation" className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition">
+                  🔴 Moderate
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -624,14 +665,15 @@ export default function CommunityFeed({
                           onChange={(e) => setQuickComment({ ...quickComment, [post.id]: e.target.value })}
                           placeholder="Write a comment..."
                           className="flex-1 bg-knight-hover border border-knight-gold-dark rounded-full px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-knight-gold outline-none"
-                          onKeyPress={(e) => e.key === 'Enter' && handleQuickComment(post.id)}
+                          onKeyPress={(e) => e.key === 'Enter' && !quickCommentPosting[post.id] && handleQuickComment(post.id)}
+                          disabled={quickCommentPosting[post.id]}
                         />
                         <button
                           onClick={() => handleQuickComment(post.id)}
-                          disabled={!quickComment[post.id]?.trim()}
+                          disabled={!quickComment[post.id]?.trim() || quickCommentPosting[post.id]}
                           className="bg-knight-gold text-black px-4 py-2 rounded-full text-sm font-bold hover:bg-knight-gold-dark hover:text-white transition disabled:opacity-50"
                         >
-                          Reply
+                          {quickCommentPosting[post.id] ? '...' : 'Reply'}
                         </button>
                       </div>
                     </div>
