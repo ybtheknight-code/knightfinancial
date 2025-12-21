@@ -40,8 +40,11 @@ export default function PostComments({
   const [postLikes, setPostLikes] = useState(initialPostLikes);
   const [userHasLiked, setUserHasLiked] = useState(initialUserHasLiked);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingComment, setEditingComment] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState('');
   
-  const supabase = createClient();
+  // Check if current user is admin
+  const isAdmin = ['admin', 'executive', 'ceo'].includes(currentUser?.role || '');
   
   const getDisplayName = (user: any) => {
     if (user?.username) return `u/${user.username}`;
@@ -55,6 +58,7 @@ export default function PostComments({
   };
   
   const handleLikePost = async () => {
+    const supabase = createClient();
     if (userHasLiked) {
       await supabase.from('community_likes').delete().eq('post_id', postId).eq('user_id', currentUser.id);
       await supabase.from('community_posts').update({ likes: postLikes - 1 }).eq('id', postId);
@@ -76,6 +80,7 @@ export default function PostComments({
     if (!text.trim() || isSubmitting) return;
     
     setIsSubmitting(true);
+    const supabase = createClient();
     
     const { data, error } = await supabase
       .from('community_comments')
@@ -105,6 +110,61 @@ export default function PostComments({
     }
     
     setIsSubmitting(false);
+  };
+
+  const handleEditComment = async (commentId: string) => {
+    if (!editCommentText.trim()) return;
+    
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('community_comments')
+      .update({ body: editCommentText.trim(), updated_at: new Date().toISOString() })
+      .eq('id', commentId)
+      .eq('user_id', currentUser.id);
+    
+    if (!error) {
+      setComments(comments.map(c => c.id === commentId ? { ...c, body: editCommentText.trim() } : c));
+      setEditingComment(null);
+      setEditCommentText('');
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm('Are you sure you want to delete this comment?')) return;
+    
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('community_comments')
+      .update({ deleted: true })
+      .eq('id', commentId);
+    
+    if (!error) {
+      setComments(comments.filter(c => c.id !== commentId));
+    }
+  };
+
+  const handleAdminDeleteComment = async (commentId: string) => {
+    if (!confirm('ADMIN: Delete this comment? This action will be logged.')) return;
+    
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('community_comments')
+      .update({ deleted: true })
+      .eq('id', commentId);
+    
+    if (!error) {
+      await supabase.from('admin_actions').insert({
+        admin_id: currentUser.id,
+        action_type: 'delete_comment',
+        target_id: commentId,
+        details: { reason: 'Admin deletion from post' },
+      });
+      setComments(comments.filter(c => c.id !== commentId));
+    }
+  };
+
+  const handleReplyTextChange = (commentId: string, value: string) => {
+    setReplyTexts(prev => ({ ...prev, [commentId]: value }));
   };
   
   const topLevelComments = comments.filter(c => !c.parent_id);
@@ -166,7 +226,7 @@ export default function PostComments({
                     <span className="text-gray-500 text-sm">{formatRelativeTime(comment.created_at)}</span>
                   </div>
                   <p className="text-gray-200 mb-3">{comment.body}</p>
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-4 text-sm flex-wrap">
                     <button className="text-gray-400 hover:text-knight-gold flex items-center gap-1">❤️ {comment.likes}</button>
                     <button 
                       onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
@@ -174,13 +234,44 @@ export default function PostComments({
                     >
                       💬 Reply
                     </button>
+                    
+                    {/* Edit/Delete for comment owner */}
+                    {comment.user_id === currentUser?.id && (
+                      <>
+                        <button 
+                          onClick={() => {
+                            setEditingComment(comment.id);
+                            setEditCommentText(comment.body);
+                          }}
+                          className="text-gray-400 hover:text-blue-400"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteComment(comment.id)}
+                          className="text-gray-400 hover:text-red-400"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </>
+                    )}
+                    
+                    {/* Admin delete */}
+                    {isAdmin && comment.user_id !== currentUser?.id && (
+                      <button 
+                        onClick={() => handleAdminDeleteComment(comment.id)}
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        🔴 Admin Delete
+                      </button>
+                    )}
                   </div>
                   
                   {replyingTo === comment.id && (
                     <div className="mt-3">
                       <textarea
                         value={replyTexts[comment.id] || ''}
-                        onChange={(e) => setReplyTexts(prev => ({ ...prev, [comment.id]: e.target.value }))}
+                        onChange={(e) => handleReplyTextChange(comment.id, e.target.value)}
                         placeholder="Write a reply..."
                         className="w-full bg-knight-black border border-knight-gold-dark rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-knight-gold resize-none"
                         rows={2}
@@ -198,6 +289,37 @@ export default function PostComments({
                           onClick={() => {
                             setReplyingTo(null);
                             setReplyTexts(prev => ({ ...prev, [comment.id]: '' }));
+                          }}
+                          className="text-gray-400 hover:text-white text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Edit Comment Form */}
+                  {editingComment === comment.id && (
+                    <div className="mt-3">
+                      <textarea
+                        value={editCommentText}
+                        onChange={(e) => setEditCommentText(e.target.value)}
+                        className="w-full bg-knight-black border border-knight-gold-dark rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-knight-gold resize-none"
+                        rows={2}
+                        autoFocus
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => handleEditComment(comment.id)}
+                          disabled={!editCommentText.trim()}
+                          className="btn-knight text-sm px-4 py-1 disabled:opacity-50"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingComment(null);
+                            setEditCommentText('');
                           }}
                           className="text-gray-400 hover:text-white text-sm"
                         >
