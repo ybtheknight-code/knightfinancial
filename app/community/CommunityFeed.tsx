@@ -588,7 +588,7 @@ export default function CommunityFeed({
                             </button>
                           </div>
                         </div>
-                      )
+                      )}
                       
                       {/* Comment Preview */}
                       {commentsMap[post.id] && commentsMap[post.id].length > 0 && (
