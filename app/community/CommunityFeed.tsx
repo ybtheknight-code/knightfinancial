@@ -171,11 +171,15 @@ export default function CommunityFeed({
         setPosts(prev => [newPost, ...prev]);
         
         // Award points
-        await supabase.rpc('award_points', {
-          p_user_id: currentUser.id,
-          p_points: 10,
-          p_reason: 'Posted in community',
-        }).catch(() => {});
+        try {
+          await supabase.rpc('award_points', {
+            p_user_id: currentUser.id,
+            p_points: 10,
+            p_reason: 'Posted in community',
+          });
+        } catch (e) {
+          // Ignore points error
+        }
       }
     } catch (err) {
       console.error('Post error:', err);
@@ -288,11 +292,15 @@ export default function CommunityFeed({
       
       setPosts(posts.map(p => p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p));
       
-      await supabase.rpc('award_points', {
-        p_user_id: currentUser.id,
-        p_points: 3,
-        p_reason: 'Commented on post',
-      }).catch(() => {});
+      try {
+        await supabase.rpc('award_points', {
+          p_user_id: currentUser.id,
+          p_points: 3,
+          p_reason: 'Commented on post',
+        });
+      } catch (e) {
+        // Ignore points error
+      }
     } catch (err) {
       // Restore comment on error
       setQuickComment(prev => ({ ...prev, [postId]: comment }));
